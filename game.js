@@ -175,7 +175,7 @@ function toast(msg) {
 
 function ganharXp(n) {
   xp += n;
-  while (xp >= xpProximo()) { xp -= xpProximo(); nivel++; toast('🎉 Subiu para o nível ' + nivel + '!'); }
+  while (xp >= xpProximo()) { xp -= xpProximo(); nivel++; sfx('level'); toast('🎉 Subiu para o nível ' + nivel + '!'); }
   salvar();
 }
 
@@ -230,6 +230,18 @@ function makeGroundTex() {
     g.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
     g.beginPath(); g.arc(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 6, 0, Math.PI * 2); g.fill();
   }
+  if (biomeAtual === 'planicie') {
+    for (let i = 0; i < 25; i++) { g.fillStyle = Math.random() < 0.5 ? '#f48fb1' : '#fff176'; g.beginPath(); g.arc(Math.random() * 256, Math.random() * 256, 2.5, 0, Math.PI * 2); g.fill(); }
+  } else if (biomeAtual === 'caverna') {
+    for (let i = 0; i < 15; i++) { g.fillStyle = 'rgba(180,220,255,0.5)'; g.fillRect(Math.random() * 256, Math.random() * 256, 4, 4); }
+  } else if (biomeAtual === 'praia') {
+    g.fillStyle = 'rgba(33,150,243,0.25)'; g.fillRect(0, 226, 256, 30);
+    for (let i = 0; i < 10; i++) { g.fillStyle = '#fff'; g.beginPath(); g.arc(Math.random() * 256, 226 + Math.random() * 30, 2, 0, Math.PI * 2); g.fill(); }
+  } else if (biomeAtual === 'cidade') {
+    g.strokeStyle = 'rgba(60,60,60,0.5)'; g.lineWidth = 10;
+    g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 256); g.stroke();
+    g.beginPath(); g.moveTo(0, 128); g.lineTo(256, 128); g.stroke();
+  }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(14, 14);
@@ -241,8 +253,43 @@ scene.add(ground);
 
 const decoGrupo = new THREE.Group();
 scene.add(decoGrupo);
+const somCtx = { ctx: null, mudo: false };
+function audio() {
+  if (!somCtx.ctx) somCtx.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  return somCtx.ctx;
+}
+function tom(freq, dur, tipo = 'square', vol = 0.08, delay = 0) {
+  if (somCtx.mudo) return;
+  try {
+    const a = audio();
+    const o = a.createOscillator(); const g = a.createGain();
+    o.type = tipo; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, a.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + delay + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(a.currentTime + delay); o.stop(a.currentTime + delay + dur);
+  } catch (e) {}
+}
+function sfx(nome) {
+  switch (nome) {
+    case 'click': tom(600, 0.06, 'square', 0.05); break;
+    case 'bola': tom(300, 0.15, 'sine', 0.1); tom(500, 0.2, 'sine', 0.08, 0.12); break;
+    case 'hit': tom(160, 0.12, 'sawtooth', 0.12); break;
+    case 'vitoria': tom(523, 0.12); tom(659, 0.12, 'square', 0.08, 0.12); tom(784, 0.25, 'square', 0.08, 0.24); break;
+    case 'falha': tom(220, 0.2, 'sawtooth', 0.08); tom(160, 0.3, 'sawtooth', 0.08, 0.15); break;
+    case 'coin': tom(880, 0.08, 'sine', 0.1); tom(1320, 0.15, 'sine', 0.08, 0.08); break;
+    case 'evoluir': tom(400, 0.15, 'sine', 0.1); tom(600, 0.15, 'sine', 0.1, 0.12); tom(900, 0.3, 'sine', 0.1, 0.24); break;
+    case 'shiny': tom(1200, 0.1, 'sine', 0.08); tom(1600, 0.2, 'sine', 0.08, 0.1); break;
+    case 'level': tom(500, 0.1); tom(700, 0.1, 'square', 0.08, 0.1); tom(1000, 0.2, 'square', 0.08, 0.2); break;
+  }
+}
+document.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') sfx('click'); });
+
+const pokeStops = [];
+
 function montarDeco() {
   while (decoGrupo.children.length) decoGrupo.remove(decoGrupo.children[0]);
+  pokeStops.length = 0;
   const matArvore = new THREE.MeshLambertMaterial({ color: BIOMES[biomeAtual].arvores });
   for (let i = 0; i < 50; i++) {
     const t = new THREE.Mesh(new THREE.ConeGeometry(1.5 + Math.random() * 1.5, 4 + Math.random() * 4, 6), matArvore);
@@ -257,10 +304,17 @@ function montarDeco() {
     decoGrupo.add(b);
   }
   for (let i = 0; i < 6; i++) {
-    const stop = new THREE.Mesh(new THREE.TorusGeometry(1.6, 0.3, 10, 20), new THREE.MeshLambertMaterial({ color: 0x2196f3 }));
-    stop.rotation.x = Math.PI / 2;
-    stop.position.set((Math.random() - 0.5) * 200, 0.4, (Math.random() - 0.5) * 200);
-    decoGrupo.add(stop);
+    const g = new THREE.Group();
+    const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.2, 8), new THREE.MeshLambertMaterial({ color: 0xeeeeee }));
+    poste.position.y = 1.1;
+    const anel = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.22, 10, 20), new THREE.MeshLambertMaterial({ color: 0x2196f3 }));
+    anel.position.y = 2.6;
+    const esfera = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 12), new THREE.MeshLambertMaterial({ color: 0x64b5f6, emissive: 0x2196f3, emissiveIntensity: 0.5 }));
+    esfera.position.y = 2.6;
+    g.add(poste, anel, esfera);
+    g.position.set((Math.random() - 0.5) * 200, 0, (Math.random() - 0.5) * 200);
+    decoGrupo.add(g);
+    pokeStops.push({ g, anel, esfera, prontoAt: 0 });
   }
 }
 montarDeco();
@@ -371,6 +425,26 @@ function update() {
   const R = 20;
   camera.position.lerp(new THREE.Vector3(player.x + Math.sin(camAngulo) * R, 18, player.y + Math.cos(camAngulo) * R), 0.15);
   camera.lookAt(player.x, 1.5, player.y);
+
+  const agora = Date.now();
+  for (const s of pokeStops) {
+    s.anel.rotation.y += 0.03;
+    s.esfera.position.y = 2.6 + Math.sin(agora / 500) * 0.3;
+    const pronto = agora >= s.prontoAt;
+    s.anel.material.color.setHex(pronto ? 0x2196f3 : 0x9e9e9e);
+    if (pronto && Math.hypot(s.g.position.x - player.x, s.g.position.z - player.y) < 4) {
+      const r = Math.random();
+      if (r < 0.4) { bolas.great += 2; toast('📍 PokéStop: +2 🔵 Great Balls!'); }
+      else if (r < 0.6) { bolas.ultra += 1; toast('📍 PokéStop: +1 🟡 Ultra Ball!'); }
+      else if (r < 0.75) { pedras += 1; toast('📍 PokéStop: +1 💎 Mega Pedra!'); }
+      else { moedas += 30; toast('📍 PokéStop: +30 🪙!'); }
+      sfx('coin');
+      s.prontoAt = agora + 45000;
+      s.g.scale.set(1.4, 1.4, 1.4);
+      setTimeout(() => s.g.scale.set(1, 1, 1), 300);
+      salvar();
+    }
+  }
 }
 
 function loop() {
@@ -456,9 +530,11 @@ function resolverLancamento() {
     if (bolas[bola] < 1) { toast('Sem essa bola!'); return; }
     bolas[bola]--;
   }
+  sfx('bola');
   let chance = capturaComChance(0.3 + (1 - anelT) * 0.4) * MULT_BOLA[bola];
   if (bola === 'master') chance = 1;
   if (Math.random() < chance) { concluirCaptura(); salvar(); return; }
+  sfx('falha');
   toast('A bola quebrou!');
   document.getElementById('captura-msg').textContent = '💨 Escapou! Enfraqueça mais ou use bola melhor.';
   capturaAtual.hp = Math.max(1, capturaAtual.hp - 5);
@@ -487,6 +563,7 @@ function capturaComChance(chanceBase) {
 }
 
 function concluirCaptura() {
+  sfx('vitoria');
   toast('🎉 Capturado! ' + nomeExibicao(capturaAtual));
   inventario.push({ espec: capturaAtual.espec, cp: capturaAtual.cp, nivel: Math.max(1, Math.round(capturaAtual.cp / 15)), shiny: capturaAtual.shiny, mega: false, pc: false });
   moedas += 25;
@@ -505,6 +582,7 @@ function concluirCaptura() {
 
 document.getElementById('btn-atacar').onclick = () => {
   if (!capturaAtual) return;
+  sfx('hit');
   capturaAtual.hp -= 10 + Math.random() * 15;
   if (capturaAtual.hp <= 0) { capturaAtual.hp = 1; toast('Cuidado! Quase nocauteou!'); }
   atualizarBarraHp();
@@ -563,6 +641,7 @@ function atacar(i) {
   const tipoP = ESPECIES[p.espec].tipo;
   const tipoW = ESPECIES[capturaAtual.espec].tipo;
   const meuTipo = i === 0 ? tipoP : 'Normal';
+  sfx('hit');
   let dmg = (6 + p.cp / 30) * eff(meuTipo, tipoW) * (0.85 + Math.random() * 0.3);
   capturaAtual.hp = Math.max(0, capturaAtual.hp - Math.round(dmg));
   document.getElementById('b-wild-hp').style.width = (capturaAtual.hp / capturaAtual.hpMax * 100) + '%';
@@ -622,6 +701,7 @@ function evoluir(i) {
   inst.cp = Math.round(inst.cp * 1.6 + 20);
   inst.nivel += 3;
   mostrarEvo(antes, spriteUrl(inst), nomeExibicao(inst));
+  sfx('evoluir');
   ganharXp(100);
   salvar(); renderListas();
 }
@@ -863,6 +943,11 @@ document.getElementById('btn-criar').onclick = () => {
   document.getElementById('tela-menu').classList.remove('oculto');
   atualizarHud();
 };
+document.getElementById('btn-som').onclick = () => {
+  somCtx.mudo = !somCtx.mudo;
+  document.getElementById('btn-som').textContent = somCtx.mudo ? '🔇' : '🔊';
+};
+
 document.getElementById('btn-sair').onclick = () => {
   localStorage.removeItem('pw_user');
   location.reload();
