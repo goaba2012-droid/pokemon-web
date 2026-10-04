@@ -1015,6 +1015,85 @@ function fimPvP(venceu) {
   pvpTurno = false;
 }
 
+// ===== TROCA =====
+let tPeer = null, tConn = null, tOfertaMinha = null, tOfertaDele = null, tAceitei = false, tAceitou = false;
+
+document.getElementById('btn-troca').onclick = () => {
+  const disp = inventario.filter(p => !p.pc);
+  if (!disp.length) return toast('Você precisa de Pokémon no time!');
+  document.getElementById('troca-escolha').innerHTML = disp.map(p => `<option value="${inventario.indexOf(p)}">${nomeExibicao(p)} CP ${p.cp} Nv ${p.nivel}</option>`).join('');
+  document.getElementById('tela-troca').classList.remove('oculto');
+  document.getElementById('troca-status').textContent = '';
+  document.getElementById('troca-oferta').textContent = '';
+  document.getElementById('troca-aceitar').classList.add('oculto');
+  tOfertaMinha = tOfertaDele = null; tAceitei = tAceitou = false;
+};
+document.getElementById('troca-fechar').onclick = () => {
+  if (tConn) tConn.close(); if (tPeer) tPeer.destroy();
+  tPeer = tConn = null;
+  document.getElementById('tela-troca').classList.add('oculto');
+};
+document.getElementById('troca-criar').onclick = () => {
+  const codigo = document.getElementById('troca-code').value.trim() || 'troca' + Math.floor(Math.random() * 900 + 100);
+  document.getElementById('troca-code').value = codigo;
+  tPeer = new Peer(codigo);
+  tStatus('Aguardando...');
+  tPeer.on('connection', c => { tConn = c; tSetup(); });
+  tPeer.on('error', e => tStatus('Erro: ' + e.type));
+};
+document.getElementById('troca-entrar').onclick = () => {
+  const codigo = document.getElementById('troca-code').value.trim();
+  if (!codigo) return tStatus('Digite o código!');
+  tPeer = new Peer();
+  tPeer.on('open', () => { tConn = tPeer.connect(codigo); tSetup(); tStatus('Conectando...'); });
+  tPeer.on('error', e => tStatus('Erro: ' + e.type));
+};
+function tStatus(m) { document.getElementById('troca-status').textContent = m; }
+function tMinhaOferta() {
+  const i = parseInt(document.getElementById('troca-escolha').value);
+  return inventario[i];
+}
+function tSetup() {
+  tConn.on('open', () => { tStatus('Conectado! Escolha o Pokémon para trocar.'); });
+  tConn.on('data', msg => {
+    if (msg.t === 'oferta') {
+      tOfertaDele = msg.mon;
+      document.getElementById('troca-oferta').innerHTML = `Oferta dele: <b>${msg.mon.shiny ? '✨ ' : ''}${ESPECIES[msg.mon.espec].nome}</b> CP ${msg.mon.cp} Nv ${msg.mon.nivel}`;
+      document.getElementById('troca-aceitar').classList.remove('oculto');
+    } else if (msg.t === 'aceitou') {
+      tAceitou = true;
+      tStatus('O amigo aceitou!');
+      if (tAceitei) tConcluir();
+    }
+  });
+  tConn.on('close', () => tStatus('Oponente desconectou.'));
+}
+document.getElementById('troca-escolha').addEventListener('change', () => {
+  const p = tMinhaOferta();
+  if (!p || !tConn || tConn.open === false) return;
+  tOfertaMinha = { espec: p.espec, cp: p.cp, nivel: p.nivel, shiny: p.shiny, mega: p.mega };
+  tConn.send({ t: 'oferta', mon: tOfertaMinha });
+  tStatus('Você ofereceu ' + nomeExibicao(p));
+});
+document.getElementById('troca-aceitar').onclick = () => {
+  if (!tOfertaDele) return;
+  tAceitei = true;
+  tConn.send({ t: 'aceitou' });
+  document.getElementById('troca-aceitar').classList.add('oculto');
+  tStatus('Você aceitou! Aguardando...');
+  if (tAceitou) tConcluir();
+};
+function tConcluir() {
+  const meuIdx = inventario.indexOf(tMinhaOferta());
+  if (meuIdx < 0) return tStatus('Erro: seu Pokémon sumiu!');
+  inventario.splice(meuIdx, 1);
+  inventario.push({ ...tOfertaDele, pc: false });
+  toast(`🔁 Troca feita! Você recebeu ${ESPECIES[tOfertaDele.espec].nome}!`);
+  tStatus('Troca concluída!');
+  salvar(); renderListas();
+  setTimeout(() => { if (tConn) tConn.close(); if (tPeer) tPeer.destroy(); tPeer = tConn = null; document.getElementById('tela-troca').classList.add('oculto'); }, 1800);
+}
+
 for (let i = 0; i < 4; i++) spawnSelvagem();
 salvar();
 if (usuario) {

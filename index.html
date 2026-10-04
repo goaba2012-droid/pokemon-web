@@ -20,6 +20,7 @@
     <button id="btn-pokedex">📖 Pokédex</button>
     <button id="btn-inventario">Inventário</button>
     <button id="btn-pvp">⚔️ PvP</button>
+    <button id="btn-troca">🔁 Trocar</button>
     <button id="btn-sair">👤 Sair</button>
   </div>
 </header>
@@ -176,6 +177,20 @@
       <button id="pvp-sair">Sair da batalha</button>
     </div>
     <button id="pvp-fechar">Fechar</button>
+  </section>
+
+  <section id="tela-troca" class="oculto modal-extra">
+    <h2>🔁 Troca de Pokémon</h2>
+    <div id="troca-setup">
+      <input id="troca-code" placeholder="Código da sala">
+      <button id="troca-criar">Criar sala</button>
+      <button id="troca-entrar">Entrar</button>
+      <p id="troca-status"></p>
+      <label>Seu Pokémon: <select id="troca-escolha"></select></label>
+      <p id="troca-oferta"></p>
+      <button id="troca-aceitar" class="oculto">✅ Aceitar troca</button>
+    </div>
+    <button id="troca-fechar">Fechar</button>
   </section>
 
   <script src="game.js"></script>
