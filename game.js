@@ -270,6 +270,14 @@ function tom(freq, dur, tipo = 'square', vol = 0.08, delay = 0) {
     o.start(a.currentTime + delay); o.stop(a.currentTime + delay + dur);
   } catch (e) {}
 }
+const CRIE = id => `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`;
+function cry(s) {
+  if (somCtx.mudo || !s) return;
+  const e = ESPECIES[s.espec];
+  if (!e) return;
+  const id = (s.mega && e.mega) ? e.mega.id : e.id;
+  try { const a = new Audio(CRIE(id)); a.volume = 0.5; a.play(); } catch (e) {}
+}
 function sfx(nome) {
   switch (nome) {
     case 'click': tom(600, 0.06, 'square', 0.05); break;
@@ -612,6 +620,7 @@ document.getElementById('btn-batalha').onclick = () => {
   document.getElementById('b-wild-nome').textContent = nomeExibicao(s) + ' CP ' + s.cp;
   document.getElementById('b-wild-hp').style.width = (s.hp / s.hpMax * 100) + '%';
   log('Um ' + nomeExibicao(s) + ' selvagem apareceu!');
+  cry(s);
 };
 
 function novoHpVoce() {
@@ -621,18 +630,52 @@ function novoHpVoce() {
   document.getElementById('b-voce-img').src = spriteUrl(p);
   document.getElementById('b-voce-hp').style.width = '100%';
   montarMoves();
+  cry(p);
 }
 function novaBatalhaJogador() { novoHpVoce(); }
 document.getElementById('b-select').addEventListener('change', novoHpVoce);
 
+const MOVES = {
+  'Normal':   [{ n: 'Investida', p: 40 }, { n: 'Arranhão', p: 40 }, { n: 'Deslize', p: 70 }, { n: 'Hiper Raio', p: 150 }],
+  'Fogo':     [{ n: 'Brasas', p: 40 }, { n: 'Labareda', p: 60 }, { n: 'Fogo Sagrado', p: 100 }, { n: 'Lança-Chamas', p: 90 }],
+  'Água':     [{ n: 'Bolha', p: 40 }, { n: 'Jato de Água', p: 40 }, { n: 'Surfar', p: 90 }, { n: 'Hidrobomba', p: 110 }],
+  'Planta':   [{ n: 'Folha Navalha', p: 55 }, { n: 'Vinhas Segurar', p: 45 }, { n: 'Raio Solar', p: 120 }, { n: 'Folha Daga', p: 70 }],
+  'Elétrico': [{ n: 'Choque do Trovão', p: 40 }, { n: 'Faísca', p: 65 }, { n: 'Raio', p: 90 }, { n: 'Trovão', p: 110 }],
+  'Psíquico': [{ n: 'Confusão', p: 50 }, { n: 'Giro Psíquico', p: 60 }, { n: 'Psi', p: 90 }, { n: 'Bola Sombra', p: 80 }],
+  'Terra':    [{ n: 'Lama', p: 20 }, { n: 'Escavação', p: 80 }, { n: 'Terremoto', p: 100 }, { n: 'Corte de Terra', p: 70 }],
+  'Pedra':    [{ n: 'Pedregulho', p: 50 }, { n: 'Avalancha', p: 75 }, { n: 'Força Bruta', p: 120 }, { n: 'Lança Pedra', p: 60 }],
+  'Voador':   [{ n: 'Rajada', p: 40 }, { n: 'Ventania', p: 60 }, { n: 'Ataque Aéreo', p: 90 }, { n: 'Corte de Asa', p: 65 }],
+  'Gelo':     [{ n: 'Pedaço de Gelo', p: 40 }, { n: 'Raio de Gelo', p: 95 }, { n: 'Nevasca', p: 110 }, { n: 'Vento Cortante', p: 55 }],
+  'Luta':     [{ n: 'Soco', p: 40 }, { n: 'Onda de Impacto', p: 70 }, { n: 'Soco Trovão', p: 75 }, { n: 'Poder Oculto', p: 100 }],
+  'Veneno':   [{ n: 'Tóxico Leve', p: 35 }, { n: 'Picada Venenosa', p: 15 }, { n: 'Bomba Lamacenta', p: 65 }, { n: 'Bomba Ácida', p: 80 }],
+  'Fantasma': [{ n: 'Lamúria', p: 50 }, { n: 'Zumbido', p: 40 }, { n: 'Bola Sombra', p: 80 }, { n: 'Garra Noturna', p: 70 }],
+  'Dragão':   [{ n: 'Fúria do Dragão', p: 60 }, { n: 'Garra do Dragão', p: 80 }, { n: 'Golpe de Dragem', p: 100 }, { n: 'Rugido Dragão', p: 45 }],
+  'Fada':     [{ n: 'Toque de Fada', p: 40 }, { n: 'Brilho Mágico', p: 80 }, { n: 'Luar', p: 60 }, { n: 'Encanto', p: 50 }],
+  'Inseto':   [{ n: 'Ferrão', p: 50 }, { n: 'Pontada', p: 45 }, { n: 'Corte Voador', p: 70 }, { n: 'Chuva de Insetos', p: 90 }],
+  '?':        [{ n: 'Investida', p: 40 }, { n: 'Arranhão', p: 40 }, { n: 'Deslize', p: 70 }, { n: 'Hiper Raio', p: 150 }],
+};
+function movesDo(tipo) { return MOVES[tipo] || MOVES['Normal']; }
+
 function montarMoves() {
   const p = bVoce.ref;
   const tipo = ESPECIES[p.espec].tipo;
-  const moves = [`💥 ${tipo} Rápido`, '🤜 Investida', '⚡ Carga Rápida'];
-  document.getElementById('b-moves').innerHTML = moves.map((m, i) => `<button onclick="atacar(${i})">${m}</button>`).join('');
+  const moves = movesDo(tipo);
+  document.getElementById('b-moves').innerHTML = moves.map((m, i) => `<button onclick="atacar(${i})">${m.n}</button>`).join('');
 }
 
 function log(m) { document.getElementById('b-log').textContent = m; }
+
+function msgEff(mul) {
+  if (mul > 1) return 'É super efetivo!';
+  if (mul < 1) return 'Não é muito efetivo...';
+  return '';
+}
+
+function eff2(atk, def) {
+  if ((FORTE[atk] || []).includes(def)) return 1.6;
+  if ((FORTE[def] || []).includes(atk)) return 0.625;
+  return 1.0;
+}
 
 function atacar(i) {
   if (bBusy || !capturaAtual || !bVoce) return;
@@ -640,34 +683,47 @@ function atacar(i) {
   const p = bVoce.ref;
   const tipoP = ESPECIES[p.espec].tipo;
   const tipoW = ESPECIES[capturaAtual.espec].tipo;
-  const meuTipo = i === 0 ? tipoP : 'Normal';
-  sfx('hit');
-  let dmg = (6 + p.cp / 30) * eff(meuTipo, tipoW) * (0.85 + Math.random() * 0.3);
-  capturaAtual.hp = Math.max(0, capturaAtual.hp - Math.round(dmg));
+  const mv = movesDo(tipoP)[i] || movesDo(tipoP)[0];
+  const mul = eff2(tipoP, tipoW);
+  const crit = Math.random() < 0.0625;
+  const dmg = Math.max(1, Math.round((mv.p / 14) * (0.5 + p.cp / 400) * mul * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
+  capturaAtual.hp = Math.max(0, capturaAtual.hp - dmg);
   document.getElementById('b-wild-hp').style.width = (capturaAtual.hp / capturaAtual.hpMax * 100) + '%';
   atualizarBarraHp();
-  log(`${nomeExibicao(p)} usou ${i === 0 ? tipoP + ' Rápido' : i === 1 ? 'Investida' : 'Carga Rápida'}! ${eff(meuTipo, tipoW) > 1 ? 'É super efetivo!' : ''}`);
+  sfx('hit');
+  log(`${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
   if (capturaAtual.hp <= 0) {
-    log(`${nomeExibicao(capturaAtual)} desmaiou e fugiu! +10 XP`);
-    ganharXp(10);
-    removerSelvagem(capturaAtual);
-    capturaAtual = null;
-    setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); document.getElementById('tela-captura').classList.add('oculto'); bBusy = false; }, 1400);
+    setTimeout(() => {
+      cry(capturaAtual);
+      log(`${nomeExibicao(capturaAtual)} desmaiou! Você ganhou XP!`);
+      sfx('vitoria');
+      ganharXp(25);
+      removerSelvagem(capturaAtual);
+      capturaAtual = null;
+      setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); document.getElementById('tela-captura').classList.add('oculto'); bBusy = false; }, 1400);
+    }, 900);
     return;
   }
   setTimeout(() => {
-    const tipoA = tipoW;
-    let dmgW = (5 + capturaAtual.cp / 35) * eff(tipoA, tipoP) * (0.85 + Math.random() * 0.3);
-    bVoce.hp = Math.max(0, bVoce.hp - Math.round(dmgW));
+    const mvW = movesDo(tipoW)[Math.floor(Math.random() * movesDo(tipoW).length)];
+    const mulW = eff2(tipoW, tipoP);
+    const critW = Math.random() < 0.0625;
+    const dmgW = Math.max(1, Math.round((mvW.p / 14) * (0.5 + capturaAtual.cp / 400) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
+    bVoce.hp = Math.max(0, bVoce.hp - dmgW);
     document.getElementById('b-voce-hp').style.width = (bVoce.hp / bVoce.hpMax * 100) + '%';
-    log(`${nomeExibicao(capturaAtual)} contra-atacou!`);
+    sfx('hit');
+    log(`${nomeExibicao(capturaAtual)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
     if (bVoce.hp <= 0) {
-      log(`${nomeExibicao(bVoce.ref)} desmaiou! O selvagem mantém ${Math.round(capturaAtual.hp / capturaAtual.hpMax * 100)}% de HP.`);
-      setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); bBusy = false; }, 1600);
+      setTimeout(() => {
+        cry(bVoce.ref);
+        log(`${nomeExibicao(bVoce.ref)} desmaiou! O selvagem mantém ${Math.round(capturaAtual.hp / capturaAtual.hpMax * 100)}% de HP.`);
+        sfx('falha');
+        setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); bBusy = false; }, 1600);
+      }, 900);
       return;
     }
     bBusy = false;
-  }, 900);
+  }, 1100);
 }
 
 document.getElementById('b-capturar').onclick = () => {
