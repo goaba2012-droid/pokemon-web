@@ -459,9 +459,9 @@ function loop() {
   update();
   renderer.render(scene, camera);
   if (capturaAtual) {
-    anelT += anelDir * 0.014;
-    if (anelT <= 0) { anelT = 0; anelDir = 1; }
-    if (anelT >= 1) { anelT = 1; anelDir = -1; }
+    anelT -= 0.02;
+    if (anelT < 0.12) anelT = 1;
+    anelDir = -1;
     const ring = document.getElementById('ring');
     if (ring) ring.style.transform = `scale(${0.6 + anelT * 0.55})`;
   }
@@ -514,24 +514,33 @@ bolaEl.addEventListener('pointerup', e => {
   const bx = e.clientX - arena.left, by = e.clientY - arena.top;
   const sx = spot.left - arena.left + spot.width / 2, sy = spot.top - arena.top + spot.height / 2;
   if (Math.hypot(bx - sx, by - sy) < 70) {
+    const dist = Math.hypot(bx - sx, by - sy);
+    const bonusAnel = 1 - anelT;
+    const rating = dist < 20 ? { t: '🎯 Excelente!', b: 0.18 } : dist < 40 ? { t: '⭐ Ótimo!', b: 0.09 } : { t: '👍 Bom!', b: 0.03 };
+    document.getElementById('captura-msg').textContent = rating.t;
     bolaEl.style.left = (sx - 27) + 'px';
     bolaEl.style.top = (sy - 27) + 'px';
     bolaEl.style.transform = 'scale(0.35)';
     document.getElementById('captura-img').classList.add('capturando');
     setTimeout(() => {
-      resolverLancamento();
-      resetBola();
-      bolaEl.style.transform = '';
       document.getElementById('captura-img').classList.remove('capturando');
-      const spot = document.getElementById('pokemon-spot');
-      spot.classList.add('tremendo');
-      setTimeout(() => spot.classList.remove('tremendo'), 900);
+      bolaEl.animate(
+        [{ transform: 'scale(0.35) rotate(0)' }, { transform: 'scale(0.35) rotate(18deg)' }, { transform: 'scale(0.35) rotate(-18deg)' }, { transform: 'scale(0.35) rotate(0)' }],
+        { duration: 350, iterations: 3 }
+      ).onfinish = () => {
+        resolverLancamento(bonusAnel, rating.b);
+        resetBola();
+        bolaEl.style.transform = '';
+        const spot = document.getElementById('pokemon-spot');
+        spot.classList.add('tremendo');
+        setTimeout(() => spot.classList.remove('tremendo'), 900);
+      };
     }, 500);
   } else resetBola();
 });
 function resetBola() { bolaEl.style.left = ''; bolaEl.style.top = ''; bolaEl.style.bottom = ''; }
 
-function resolverLancamento() {
+function resolverLancamento(bonusAnel = 0.5, bonusRating = 0) {
   if (!capturaAtual) return;
   const bola = document.getElementById('bola-select').value;
   if (bola !== 'poke') {
@@ -539,7 +548,7 @@ function resolverLancamento() {
     bolas[bola]--;
   }
   sfx('bola');
-  let chance = capturaComChance(0.3 + (1 - anelT) * 0.4) * MULT_BOLA[bola];
+  let chance = capturaComChance(0.3 + bonusAnel * 0.4 + bonusRating) * MULT_BOLA[bola];
   if (bola === 'master') chance = 1;
   if (Math.random() < chance) { concluirCaptura(); salvar(); return; }
   sfx('falha');
