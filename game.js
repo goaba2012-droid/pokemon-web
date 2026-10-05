@@ -482,6 +482,52 @@ function abrirCaptura(s) {
   document.getElementById('ring').style.borderColor = dif < 0.4 ? '#4caf50' : dif < 0.8 ? '#ff9800' : '#f44336';
   document.getElementById('tela-captura').classList.remove('oculto');
   anelT = 1;
+  iniciarCenaCaptura(s);
+}
+
+// ===== CENA 3D DA CAPTURA =====
+let capturaRen = null, capturaScene = null, capturaCam = null, capturaMesh = null, capturaRot = 0, capturaAberta = false;
+function iniciarCenaCaptura(s) {
+  const spot = document.getElementById('pokemon-spot');
+  if (!capturaRen) {
+    capturaRen = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    capturaRen.setSize(spot.clientWidth || 280, spot.clientHeight || 280);
+    capturaRen.domElement.style.position = 'absolute';
+    capturaRen.domElement.style.inset = '0';
+    spot.appendChild(capturaRen.domElement);
+    capturaScene = new THREE.Scene();
+    capturaCam = new THREE.PerspectiveCamera(45, (spot.clientWidth || 280) / (spot.clientHeight || 280), 0.1, 100);
+    capturaCam.position.z = 4.2;
+    capturaScene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    capturaAberta = true;
+    requestAnimationFrame(animarCaptura3D);
+  }
+  if (capturaMesh) capturaScene.remove(capturaMesh);
+  const tex = new THREE.TextureLoader().load(spriteUrl(s));
+  capturaMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, 3),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
+  );
+  capturaScene.add(capturaMesh);
+  const img = document.getElementById('captura-img');
+  if (img) img.style.display = 'none';
+}
+function animarCaptura3D() {
+  requestAnimationFrame(animarCaptura3D);
+  if (!capturaAberta || !capturaRen) return;
+  capturaRot += 0.04;
+  if (capturaMesh) capturaMesh.rotation.y = capturaRot;
+  capturaRen.render(capturaScene, capturaCam);
+}
+function escalaMesh(alvo, dur, cb) {
+  if (!capturaMesh) return cb && cb();
+  const ini = capturaMesh.scale.x || 1, t0 = performance.now();
+  (function step(t) {
+    const k = Math.min(1, (t - t0) / dur);
+    const v = ini + (alvo - ini) * k;
+    capturaMesh.scale.set(v, v, 1);
+    if (k < 1) requestAnimationFrame(step); else cb && cb();
+  })(performance.now());
 }
 
 function renderBolas() {
@@ -524,17 +570,20 @@ bolaEl.addEventListener('pointerup', e => {
     document.getElementById('captura-img').classList.add('capturando');
     setTimeout(() => {
       document.getElementById('captura-img').classList.remove('capturando');
-      bolaEl.animate(
-        [{ transform: 'scale(0.35) rotate(0)' }, { transform: 'scale(0.35) rotate(18deg)' }, { transform: 'scale(0.35) rotate(-18deg)' }, { transform: 'scale(0.35) rotate(0)' }],
-        { duration: 350, iterations: 3 }
-      ).onfinish = () => {
-        resolverLancamento(bonusAnel, rating.b);
-        resetBola();
-        bolaEl.style.transform = '';
-        const spot = document.getElementById('pokemon-spot');
-        spot.classList.add('tremendo');
-        setTimeout(() => spot.classList.remove('tremendo'), 900);
-      };
+      // Pokémon é sugado pela Pokébola
+      escalaMesh(0.05, 450, () => {
+        bolaEl.animate(
+          [{ transform: 'scale(0.35) rotate(0)' }, { transform: 'scale(0.35) rotate(18deg)' }, { transform: 'scale(0.35) rotate(-18deg)' }, { transform: 'scale(0.35) rotate(0)' }],
+          { duration: 350, iterations: 3 }
+        ).onfinish = () => {
+          resolverLancamento(bonusAnel, rating.b);
+          resetBola();
+          bolaEl.style.transform = '';
+          const spot = document.getElementById('pokemon-spot');
+          spot.classList.add('tremendo');
+          setTimeout(() => spot.classList.remove('tremendo'), 900);
+        };
+      });
     }, 500);
   } else resetBola();
 });
@@ -550,10 +599,16 @@ function resolverLancamento(bonusAnel = 0.5, bonusRating = 0) {
   sfx('bola');
   let chance = capturaComChance(0.3 + bonusAnel * 0.4 + bonusRating) * MULT_BOLA[bola];
   if (bola === 'master') chance = 1;
-  if (Math.random() < chance) { concluirCaptura(); salvar(); return; }
+  if (Math.random() < chance) {
+    efeitosCaptura();
+    salvar();
+    setTimeout(() => concluirCaptura(), 900);
+    return;
+  }
   sfx('falha');
   toast('A bola quebrou!');
   document.getElementById('captura-msg').textContent = '💨 Escapou! Enfraqueça mais ou use bola melhor.';
+  escalaMesh(1, 400);
   capturaAtual.hp = Math.max(1, capturaAtual.hp - 5);
   atualizarBarraHp();
   if (Math.random() < 0.25) {
@@ -577,6 +632,20 @@ function capturaComChance(chanceBase) {
   let chance = chanceBase + (1 - hpFrac) * 0.45 - cpPenalty;
   if (capturaAtual.shiny) chance -= 0.15;
   return Math.max(0.05, Math.min(0.95, chance));
+}
+
+function efeitosCaptura() {
+  const spot = document.getElementById('pokemon-spot');
+  const emojis = ['✨', '⭐', '🌟', '💫', '✨', '⭐'];
+  for (let i = 0; i < emojis.length; i++) {
+    const el = document.createElement('div');
+    el.textContent = emojis[i];
+    el.style.cssText = `position:absolute;left:${20 + Math.random() * 60}%;top:${10 + Math.random() * 60}%;font-size:28px;pointer-events:none;z-index:9;transition:all 1s;`;
+    spot.appendChild(el);
+    requestAnimationFrame(() => { el.style.transform = `translate(${(Math.random() - .5) * 120}px, ${-40 - Math.random() * 80}px) scale(1.6)`; el.style.opacity = '0'; });
+    setTimeout(() => el.remove(), 1100);
+  }
+  sfx('vitoria');
 }
 
 function concluirCaptura() {
