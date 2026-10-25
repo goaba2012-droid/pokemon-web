@@ -71,6 +71,7 @@ const RARIDADES = {
 const NIVEL_MAX_NORMAL = 100;
 const NIVEL_RAID = 500;
 const CHANCE_SHINY_RAID = 0.05;
+const nivelSelvagemAleatorio = () => 1 + Math.floor(Math.random() * NIVEL_MAX_NORMAL);
 
 // IDs de lendários e míticos de todas as gerações (usados pela PokéAPI e pelas raids).
 const LENDARIOS = new Set([
@@ -1030,7 +1031,7 @@ function spawnSelvagem() {
   if (!e) return;
   const tier = tierDe(e);
   const shiny = Math.random() < Math.min(0.08, 0.015 + nivel * 0.001);
-  const nivelSelvagem = Math.max(1, Math.min(NIVEL_MAX_NORMAL, Math.round(nivel * (0.4 + Math.random() * 0.6))));
+  const nivelSelvagem = nivelSelvagemAleatorio();
   const cp = Math.round(10 + Math.random() * 15 * nivelSelvagem * (tier === 'lendario' || tier === 'mitico' ? 2.5 : 1));
   const ang = Math.random() * Math.PI * 2;
   const dist = 10 + Math.random() * 25;
