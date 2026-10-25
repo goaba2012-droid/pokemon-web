@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b1020">
 <title>Pokémon Web GO</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50h92' stroke='%23222' stroke-width='8'/><circle cx='50' cy='50' r='14' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50a46 46 0 0 1 92 0z' fill='%23ef4444'/></svg>">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <div class="bg-orb orb-1"></div>
@@ -124,10 +124,13 @@
   <div class="captura-status">
     <div id="captura-hp"><div id="captura-hp-bar"></div></div>
     <div id="captura-chance">Chance de captura: <b>--</b></div>
+    <div id="captura-bonus" class="captura-bonus">Anel: --</div>
+    <div id="captura-tentativas" class="captura-tentativas"></div>
   </div>
 
   <select id="bola-select" title="Escolha a bola"></select>
   <div class="captura-btns">
+    <button id="btn-fruta">🍇 Fruta</button>
     <button id="btn-atacar">⚔️ Atacar</button>
     <button id="btn-batalha">🥊 Batalha!</button>
     <button id="btn-fugir" class="btn-perigo">🏃 Fugir</button>
@@ -139,8 +142,9 @@
     <span>1️⃣ Arraste a <b>Pokébola</b> até o Pokémon</span>
     <span>2️⃣ Solte com o <b>anel pequeno</b> para mais chance</span>
     <span>3️⃣ Use ⚔️ Atacar para enfraquecer</span>
-    <span>4️⃣ Bolas melhores capturam mais</span>
-    <span>5️⃣ Raridade alta = mais raro e difícil</span>
+    <span>4️⃣ Use 🍇 Fruta para acalmar e aumentar a chance</span>
+    <span>5️⃣ Bolas melhores capturam mais</span>
+    <span>6️⃣ Raridade alta = mais raro e difícil</span>
   </div>
 </section>
 
@@ -148,23 +152,39 @@
 <section id="tela-batalha" class="modal painel oculto">
   <button class="btn-x" onclick="fecharBatalha()">✕</button>
   <h2 id="b-titulo">⚔️ Batalha selvagem</h2>
+  <div id="b-status" class="batalha-status">Turno 1 · Sua vez</div>
   <div id="b-arena">
     <div id="b-wild" class="lutador">
       <img id="b-wild-img" alt="selvagem">
       <b id="b-wild-nome"></b>
       <span id="b-wild-raridade" class="raridade-tag">Comum</span>
       <div class="hpbar"><div id="b-wild-hp"></div></div>
+      <small id="b-wild-hp-txt" class="hp-txt"></small>
     </div>
     <span class="vs">VS</span>
     <div id="b-voce" class="lutador">
       <img id="b-voce-img" alt="você">
       <select id="b-select"></select>
       <div class="hpbar"><div id="b-voce-hp"></div></div>
+      <small id="b-voce-hp-txt" class="hp-txt"></small>
     </div>
   </div>
   <div id="raid-time" class="oculto"></div>
+  <div id="raid-energia" class="oculto">
+    <span>⚡ Energia</span>
+    <div class="energia-bar"><div id="raid-energia-bar"></div></div>
+    <b id="raid-energia-txt">0%</b>
+  </div>
   <div id="b-moves"></div>
-  <p id="b-log"></p>
+  <div id="raid-actions" class="oculto">
+    <button id="raid-carregado" onclick="golpeCarregadoRaid()">⚡ Golpe carregado</button>
+    <button id="raid-esquivar" onclick="esquivarRaid()">🛡️ Esquivar</button>
+  </div>
+  <div id="b-log" class="batalha-log"></div>
+  <div id="b-captura-area" class="captura-batalha">
+    <select id="b-bola-select" title="Bola para capturar"></select>
+    <span id="b-captura-chance"></span>
+  </div>
   <div class="modal-acoes">
     <button id="b-capturar">🔴 Capturar</button>
     <button id="b-fugir" class="btn-secundario-escuro">🏃 Fugir</button>
@@ -266,6 +286,13 @@
     <button onclick="darPokemon()" class="btn-principal">🎁 Dar Pokémon</button>
   </fieldset>
 
+  <fieldset class="admin-grupo">
+    <legend>🚨 Raid lendária</legend>
+    <p class="admin-dica">Invoca uma raid lendária imediatamente. Você precisa de 3 Pokémon no time.</p>
+    <button onclick="invocarRaid()" class="btn-principal">🚨 Spawnar raid agora</button>
+    <p id="admin-raid-status" class="admin-status"></p>
+  </fieldset>
+
   <button onclick="darIncenso()" class="btn-secundario-escuro">🪔 Dar Incenso a outro usuário</button>
 </section>
 
@@ -299,21 +326,29 @@
   </div>
 
   <div id="pvp-battle" class="oculto">
+    <div id="pvp-turno" class="pvp-turno">Aguardando conexão...</div>
     <div class="pvp-arena">
       <div class="pvp-lado">
         <img id="pvp-eu-img" alt="você">
         <b id="pvp-eu-nome"></b>
         <div class="hpbar"><div id="pvp-eu-hp"></div></div>
+        <small id="pvp-eu-hp-txt" class="hp-txt"></small>
       </div>
       <span class="vs">VS</span>
       <div class="pvp-lado">
         <img id="pvp-adv-img" alt="adversário">
         <b id="pvp-adv-nome"></b>
         <div class="hpbar"><div id="pvp-adv-hp"></div></div>
+        <small id="pvp-adv-hp-txt" class="hp-txt"></small>
       </div>
     </div>
+    <div id="pvp-efeitos" class="pvp-efeitos"></div>
     <div id="pvp-moves"></div>
-    <p id="pvp-log"></p>
+    <div id="pvp-actions">
+      <button onclick="pvpGuardar()">🛡️ Guarda</button>
+      <button onclick="pvpConcentrar()">🔮 Concentrar</button>
+    </div>
+    <div id="pvp-log" class="batalha-log"></div>
     <button id="pvp-sair" class="btn-secundario-escuro">Sair da batalha</button>
   </div>
 </section>
@@ -360,6 +395,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<script src="game.js?v=10"></script>
+<script src="game.js?v=11"></script>
 </body>
 </html>

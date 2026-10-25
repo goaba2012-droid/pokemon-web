@@ -73,6 +73,13 @@ const NIVEL_RAID = 500;
 const CHANCE_SHINY_RAID = 0.05;
 const nivelSelvagemAleatorio = () => 1 + Math.floor(Math.random() * NIVEL_MAX_NORMAL);
 
+// Captura e raids
+const FRUTA_BONUS = 0.14;
+const RAID_BATALHA_MS = 180000;
+const RAID_ENERGIA_MAX = 100;
+const RAID_ENERGIA_ATAQUE = 22;
+const RAID_ENERGIA_ESQUIVA = 15;
+
 // IDs de lendários e míticos de todas as gerações (usados pela PokéAPI e pelas raids).
 const LENDARIOS = new Set([
   144, 145, 146, 150,
@@ -1091,6 +1098,7 @@ function removerSelvagem(s) {
 let raidAtual = null;
 let raidState = null;
 let raidExpiraEm = 0;
+let raidBattleExpiraEm = 0;
 let raidSegAnterior = -1;
 let raidUltimoId = 0;
 let raidProximaEm = Date.now() + 60000;
@@ -1123,16 +1131,16 @@ function expirarRaid() {
 }
 
 function iniciarRaid() {
-  if (raidAtual || raidState || capturaAtual) return;
+  if (raidAtual || raidState || capturaAtual) return false;
   const menu = document.getElementById('tela-menu');
   const login = document.getElementById('tela-login');
-  if (!usuario || (menu && !menu.classList.contains('oculto')) || (login && !login.classList.contains('oculto'))) return;
+  if (!usuario || (menu && !menu.classList.contains('oculto')) || (login && !login.classList.contains('oculto'))) return false;
   if (inventario.filter(p => !p.pc).length < 3) {
     raidProximaEm = Date.now() + 30000;
-    return;
+    return false;
   }
   const pool = ESPECIES.filter(e => (e.lendario || e.mitico) && e.id && e.id !== raidUltimoId);
-  if (!pool.length) { raidProximaEm = Date.now() + 60000; return; }
+  if (!pool.length) { raidProximaEm = Date.now() + 60000; return false; }
   const e = pool[Math.floor(Math.random() * pool.length)];
   const idx = ESPECIES.indexOf(e);
   const tier = tierDe(e);
@@ -1205,6 +1213,7 @@ function iniciarRaid() {
   toast(`🚨 RAID LENDÁRIA! ${nomeExibicao(s)} nível ${NIVEL_RAID} apareceu!`);
   sfx('batalha');
   rugidoPokemon(s, 'batalha');
+  return true;
 }
 
 function renderRaidTime() {
@@ -1214,20 +1223,61 @@ function renderRaidTime() {
   el.innerHTML = raidState.mons.map((m, i) => {
     const ativo = i === raidState.idx;
     const nocaute = m.hp <= 0;
-    return `<div class="raid-mon ${ativo ? 'ativo' : ''} ${nocaute ? 'nocauteado' : ''}">
+    const podeTrocar = !ativo && !nocaute && !raidState.busy;
+    return `<div class="raid-mon ${ativo ? 'ativo' : ''} ${nocaute ? 'nocauteado' : ''} ${podeTrocar ? 'pode-trocar' : ''}"
+      onclick="trocarRaid(${i})" title="${podeTrocar ? 'Clique para trocar de Pokémon' : ''}">
       <img src="${spriteUrl(m.ref)}" alt="${nomeExibicao(m.ref)}">
       <b>${nomeExibicao(m.ref)}</b>
       <small>CP ${m.ref.cp} · Nv ${m.ref.nivel}</small>
       <div class="hpbar"><div style="width:${Math.max(0, m.hp / m.hpMax * 100)}%"></div></div>
+      <small class="raid-hp-txt">${Math.max(0, Math.round(m.hp))}/${m.hpMax}</small>
     </div>`;
   }).join('');
+}
+
+function atualizarRaidHud() {
+  const st = raidState;
+  if (!st) return;
+  const pct = Math.max(0, st.bossHp / st.bossHpMax * 100);
+  const bar = document.getElementById('b-wild-hp');
+  if (bar) bar.style.width = pct + '%';
+  const hpTxt = document.getElementById('b-wild-hp-txt');
+  if (hpTxt) hpTxt.textContent = `HP ${Math.max(0, Math.round(st.bossHp))} / ${st.bossHpMax} · ${Math.round(pct)}%`;
+
+  const restante = Math.max(0, raidBattleExpiraEm - Date.now());
+  const mm = Math.floor(restante / 60000);
+  const ss = String(Math.floor((restante % 60000) / 1000)).padStart(2, '0');
+  const ativo = st.mons[st.idx];
+  const status = document.getElementById('b-status');
+  if (status) {
+    status.textContent = `⏱ ${mm}:${ss} · Turno ${st.turno || 0} · ${ativo ? nomeExibicao(ativo.ref) : '—'}${st.esquiva ? ' · 🛡️ esquivando' : ''}`;
+  }
+
+  const energia = Math.max(0, Math.min(RAID_ENERGIA_MAX, st.energia || 0));
+  const eBar = document.getElementById('raid-energia-bar');
+  if (eBar) eBar.style.width = energia + '%';
+  const eTxt = document.getElementById('raid-energia-txt');
+  if (eTxt) eTxt.textContent = energia + '%';
+  const carregado = document.getElementById('raid-carregado');
+  if (carregado) {
+    carregado.disabled = energia < RAID_ENERGIA_MAX || st.busy;
+    carregado.textContent = energia >= RAID_ENERGIA_MAX
+      ? '⚡ Golpe carregado pronto!'
+      : `⚡ Golpe carregado (${energia}%)`;
+  }
+  const esquivar = document.getElementById('raid-esquivar');
+  if (esquivar) esquivar.disabled = !!st.busy;
+  document.querySelectorAll('#b-moves button').forEach(b => { b.disabled = !!st.busy; });
 }
 
 function montarMovesRaid() {
   if (!raidState) return;
   const p = raidState.mons[raidState.idx].ref;
   const moves = movesDo(ESPECIES[p.espec].tipo);
-  document.getElementById('b-moves').innerHTML = moves.map((m, i) => `<button onclick="atacarRaid(${i})">${m.n}</button>`).join('');
+  document.getElementById('b-moves').innerHTML = moves.map((m, i) =>
+    `<button class="move-btn" onclick="atacarRaid(${i})"><b>${m.n}</b><small>${m.p} poder</small></button>`
+  ).join('');
+  atualizarRaidHud();
 }
 
 function entrarRaid(s) {
@@ -1242,11 +1292,16 @@ function entrarRaid(s) {
     const hp = Math.round(140 + p.cp / 2.5);
     return { ref: p, hp, hpMax: hp };
   });
-  raidState = { boss: s, mons, idx: 0, bossHpMax, bossHp: bossHpMax, busy: false };
+  raidState = {
+    boss: s, mons, idx: 0, bossHpMax, bossHp: bossHpMax,
+    busy: false, energia: 0, turno: 0, esquiva: false,
+  };
   capturaAtual = s;
   bBusy = false;
-  raidExpiraEm = Date.now() + 180000;
+  raidBattleExpiraEm = Date.now() + RAID_BATALHA_MS;
+  raidExpiraEm = raidBattleExpiraEm;
   esconderBannerRaid();
+  resetLogBatalha();
 
   const e = ESPECIES[s.espec];
   const r = raridadeDe(e);
@@ -1264,14 +1319,65 @@ function entrarRaid(s) {
   document.getElementById('b-arena').classList.add('raid');
   document.getElementById('b-voce').classList.add('oculto');
   document.getElementById('raid-time').classList.remove('oculto');
+  document.getElementById('raid-energia').classList.remove('oculto');
+  document.getElementById('raid-actions').classList.remove('oculto');
+  document.getElementById('b-captura-area').classList.add('oculto');
   document.getElementById('b-capturar').classList.add('oculto');
   document.getElementById('b-fugir').textContent = '🏃 Sair da raid';
   document.getElementById('tela-batalha').classList.remove('oculto');
   renderRaidTime();
   montarMovesRaid();
+  atualizarRaidHud();
   log(`Raid lendária! ${nomeExibicao(s)} Nv ${NIVEL_RAID} enfrenta os 3 Pokémon mais fortes do seu time.`);
   sfx('batalha');
   rugidoPokemon(s, 'batalha');
+}
+
+function turnoBossRaid() {
+  if (!raidState) return;
+  const st = raidState;
+  const alvo = st.mons[st.idx];
+  if (!alvo || alvo.hp <= 0) { st.busy = false; atualizarRaidHud(); return; }
+  const tipoBoss = ESPECIES[st.boss.espec].tipo;
+  const mvW = movesDo(tipoBoss)[Math.floor(Math.random() * 4)];
+  const mulW = eff2(tipoBoss, ESPECIES[alvo.ref.espec].tipo);
+  const critW = Math.random() < 0.0625;
+  const pesado = st.turno > 0 && st.turno % 3 === 0;
+  const esquivou = !!st.esquiva;
+  let dmgW = Math.max(6, Math.round((20 + st.boss.nivel * 0.045 + alvo.ref.cp / 25) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3) * (pesado ? 1.45 : 1)));
+  if (esquivou) dmgW = Math.max(3, Math.round(dmgW * 0.45));
+  st.esquiva = false;
+  alvo.hp = Math.max(0, alvo.hp - dmgW);
+  renderRaidTime();
+  mostrarDano(document.querySelector('#raid-time .raid-mon.ativo') || document.getElementById('b-wild'), `-${dmgW}`, '#f87171');
+  atualizarRaidHud();
+  sfx('hit');
+  log(`${nomeExibicao(st.boss)} usou ${mvW.n}!${pesado ? ' 💥 Golpe poderoso!' : ''}${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
+  if (esquivou) log('🛡️ Você esquivou e reduziu o dano!');
+
+  if (alvo.hp <= 0) {
+    cry(alvo.ref, 0.4);
+    const proximo = st.mons.findIndex(m => m.hp > 0);
+    if (proximo < 0) {
+      setTimeout(() => derrotaRaid('💀 Sua equipe foi derrotada... A raid fugiu.'), 700);
+      return;
+    }
+    setTimeout(() => {
+      if (!raidState || raidState !== st) return;
+      st.idx = proximo;
+      st.esquiva = false;
+      montarMovesRaid();
+      renderRaidTime();
+      atualizarRaidHud();
+      log(`${nomeExibicao(alvo.ref)} desmaiou! ${nomeExibicao(st.mons[proximo].ref)} entrou na batalha!`);
+      cry(st.mons[proximo].ref, 0.5);
+      st.busy = false;
+      atualizarRaidHud();
+    }, 800);
+    return;
+  }
+  st.busy = false;
+  atualizarRaidHud();
 }
 
 function atacarRaid(i) {
@@ -1280,6 +1386,7 @@ function atacarRaid(i) {
   const ativo = st.mons[st.idx];
   if (!ativo || ativo.hp <= 0) return;
   st.busy = true;
+  st.turno = (st.turno || 0) + 1;
   const p = ativo.ref;
   const tipoP = ESPECIES[p.espec].tipo;
   const tipoW = ESPECIES[st.boss.espec].tipo;
@@ -1288,7 +1395,9 @@ function atacarRaid(i) {
   const crit = Math.random() < 0.1;
   const dmg = Math.max(8, Math.round((mv.p / 14) * (0.5 + p.cp / 400) * mul * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.3) * 10.5));
   st.bossHp = Math.max(0, st.bossHp - dmg);
-  document.getElementById('b-wild-hp').style.width = (st.bossHp / st.bossHpMax * 100) + '%';
+  st.energia = Math.min(RAID_ENERGIA_MAX, (st.energia || 0) + RAID_ENERGIA_ATAQUE);
+  mostrarDano(document.getElementById('b-wild'), `-${dmg}`, '#fbbf24');
+  atualizarRaidHud();
   sfx('hit');
   log(`${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
 
@@ -1296,47 +1405,84 @@ function atacarRaid(i) {
     setTimeout(vitoriaRaid, 800);
     return;
   }
-
-  setTimeout(() => {
-    if (!raidState || raidState !== st) return;
-    const alvo = st.mons[st.idx];
-    if (!alvo || alvo.hp <= 0) { st.busy = false; return; }
-    const tipoBoss = ESPECIES[st.boss.espec].tipo;
-    const mvW = movesDo(tipoBoss)[Math.floor(Math.random() * 4)];
-    const mulW = eff2(tipoBoss, ESPECIES[alvo.ref.espec].tipo);
-    const critW = Math.random() < 0.0625;
-    const dmgW = Math.max(6, Math.round((20 + st.boss.nivel * 0.045 + alvo.ref.cp / 25) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
-    alvo.hp = Math.max(0, alvo.hp - dmgW);
-    renderRaidTime();
-    sfx('hit');
-    log(`${nomeExibicao(st.boss)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
-    if (alvo.hp <= 0) {
-      cry(alvo.ref, 0.4);
-      const proximo = st.mons.findIndex(m => m.hp > 0);
-      if (proximo < 0) {
-        setTimeout(derrotaRaid, 700);
-        return;
-      }
-      setTimeout(() => {
-        if (!raidState || raidState !== st) return;
-        st.idx = proximo;
-        montarMovesRaid();
-        renderRaidTime();
-        log(`${nomeExibicao(alvo.ref)} desmaiou! ${nomeExibicao(st.mons[proximo].ref)} entrou na batalha!`);
-        cry(st.mons[proximo].ref, 0.5);
-        st.busy = false;
-      }, 800);
-      return;
-    }
-    st.busy = false;
-  }, 1000);
+  setTimeout(turnoBossRaid, 900);
 }
+
+window.golpeCarregadoRaid = function () {
+  if (!raidState || raidState.busy) return;
+  const st = raidState;
+  if ((st.energia || 0) < RAID_ENERGIA_MAX) return toast('⚡ Energia insuficiente! Use ataques rápidos ou esquive.');
+  const ativo = st.mons[st.idx];
+  if (!ativo || ativo.hp <= 0) return;
+  st.busy = true;
+  st.turno = (st.turno || 0) + 1;
+  st.energia = 0;
+  const p = ativo.ref;
+  const tipoP = ESPECIES[p.espec].tipo;
+  const tipoW = ESPECIES[st.boss.espec].tipo;
+  const mv = movesDo(tipoP).reduce((a, b) => b.p > a.p ? b : a, movesDo(tipoP)[0]);
+  const mul = eff2(tipoP, tipoW);
+  const crit = Math.random() < 0.2;
+  const dmg = Math.max(30, Math.round((mv.p / 14) * (0.5 + p.cp / 400) * mul * (crit ? 1.5 : 1) * (0.9 + Math.random() * 0.2) * 10.5 * 2.1));
+  st.bossHp = Math.max(0, st.bossHp - dmg);
+  mostrarDano(document.getElementById('b-wild'), `-${dmg}`, '#facc15');
+  atualizarRaidHud();
+  sfx('hit');
+  log(`⚡ GOLPE CARREGADO! ${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
+  if (st.bossHp <= 0) {
+    setTimeout(vitoriaRaid, 800);
+    return;
+  }
+  setTimeout(turnoBossRaid, 900);
+};
+
+window.esquivarRaid = function () {
+  if (!raidState || raidState.busy) return;
+  const st = raidState;
+  const ativo = st.mons[st.idx];
+  if (!ativo || ativo.hp <= 0) return;
+  st.busy = true;
+  st.turno = (st.turno || 0) + 1;
+  st.esquiva = true;
+  st.energia = Math.min(RAID_ENERGIA_MAX, (st.energia || 0) + RAID_ENERGIA_ESQUIVA);
+  atualizarRaidHud();
+  log('🛡️ Você se preparou para esquivar! O próximo golpe do chefe causará menos dano.');
+  setTimeout(turnoBossRaid, 600);
+};
+
+window.trocarRaid = function (i) {
+  if (!raidState || raidState.busy) return;
+  const st = raidState;
+  const alvo = st.mons[i];
+  if (!alvo || alvo.hp <= 0 || i === st.idx) return;
+  st.busy = true;
+  st.idx = i;
+  st.esquiva = false;
+  st.turno = (st.turno || 0) + 1;
+  montarMovesRaid();
+  renderRaidTime();
+  atualizarRaidHud();
+  log(`🔄 ${nomeExibicao(alvo.ref)} entrou na batalha!`);
+  cry(alvo.ref, 0.5);
+  setTimeout(turnoBossRaid, 700);
+};
+
+setInterval(() => {
+  if (!raidState) return;
+  if (Date.now() >= raidBattleExpiraEm) {
+    derrotaRaid('⏱ O tempo da raid acabou! A equipe não conseguiu derrotar o chefe.');
+    return;
+  }
+  atualizarRaidHud();
+}, 1000);
 
 function vitoriaRaid() {
   if (!raidState) return;
   const st = raidState;
   raidState = null;
-  document.getElementById('b-log').textContent = `🏆 ${nomeExibicao(st.boss)} foi derrotado!`;
+  raidBattleExpiraEm = 0;
+  log(`🏆 ${nomeExibicao(st.boss)} foi derrotado!`);
+  document.getElementById('b-status').textContent = '🏆 Vitória na raid!';
   sfx('vitoria');
   cry(st.boss, 0.7);
   removerSelvagem(st.boss);
@@ -1347,6 +1493,9 @@ function vitoriaRaid() {
   setTimeout(() => {
     document.getElementById('tela-batalha').classList.add('oculto');
     document.getElementById('raid-time').classList.add('oculto');
+    document.getElementById('raid-energia').classList.add('oculto');
+    document.getElementById('raid-actions').classList.add('oculto');
+    document.getElementById('b-captura-area').classList.add('oculto');
     document.getElementById('b-voce').classList.remove('oculto');
     document.getElementById('b-capturar').classList.remove('oculto');
     document.getElementById('b-fugir').textContent = '🏃 Fugir';
@@ -1372,11 +1521,13 @@ function premiarRaid(boss) {
   toast(`🏆 Lendário derrotado!${shinyTxt} Capture-o no nível ${nivelSorteado}!`);
 }
 
-function derrotaRaid() {
+function derrotaRaid(motivo = '💀 Sua equipe foi derrotada... A raid fugiu.') {
   if (!raidState) return;
   const st = raidState;
   raidState = null;
-  document.getElementById('b-log').textContent = '💀 Sua equipe foi derrotada... A raid fugiu.';
+  raidBattleExpiraEm = 0;
+  log(motivo);
+  document.getElementById('b-status').textContent = 'A raid terminou...';
   sfx('falha');
   setTimeout(() => {
     removerSelvagem(st.boss);
@@ -1385,6 +1536,9 @@ function derrotaRaid() {
     agendarProximaRaid();
     document.getElementById('tela-batalha').classList.add('oculto');
     document.getElementById('raid-time').classList.add('oculto');
+    document.getElementById('raid-energia').classList.add('oculto');
+    document.getElementById('raid-actions').classList.add('oculto');
+    document.getElementById('b-captura-area').classList.remove('oculto');
     document.getElementById('b-voce').classList.remove('oculto');
     document.getElementById('b-capturar').classList.remove('oculto');
     document.getElementById('b-fugir').textContent = '🏃 Fugir';
@@ -1396,14 +1550,19 @@ function derrotaRaid() {
 
 function sairRaid() {
   raidState = null;
+  raidBattleExpiraEm = 0;
   capturaAtual = null;
   document.getElementById('tela-batalha').classList.add('oculto');
   document.getElementById('raid-time').classList.add('oculto');
+  document.getElementById('raid-energia').classList.add('oculto');
+  document.getElementById('raid-actions').classList.add('oculto');
+  document.getElementById('b-captura-area').classList.remove('oculto');
   document.getElementById('b-voce').classList.remove('oculto');
   document.getElementById('b-capturar').classList.remove('oculto');
   document.getElementById('b-fugir').textContent = '🏃 Fugir';
   document.getElementById('b-arena').classList.remove('raid');
   document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+  document.getElementById('b-status').textContent = 'Batalha encerrada';
   if (raidAtual) {
     raidExpiraEm = Date.now() + 120000;
     const alerta = document.getElementById('raid-alerta');
@@ -1622,6 +1781,11 @@ function loop() {
     anelDir = -1;
     const ring = document.getElementById('ring');
     if (ring) ring.style.transform = `scale(${0.6 + anelT * 0.55})`;
+    const telaCaptura = document.getElementById('tela-captura');
+    if (telaCaptura && !telaCaptura.classList.contains('oculto') && performance.now() - ultimaChanceT > 180) {
+      ultimaChanceT = performance.now();
+      atualizarChance();
+    }
   }
   requestAnimationFrame(loop);
 }
@@ -1629,6 +1793,9 @@ function loop() {
 // ===== CAPTURA =====
 function abrirCaptura(s) {
   capturaAtual = s;
+  s.tentativas = 0;
+  s.frutaUsada = false;
+  s.frutaBonus = 0;
   const e = ESPECIES[s.espec];
   const r = raridadeDe(e);
   const lvl = Math.min(NIVEL_MAX_NORMAL, s.nivel || Math.max(1, Math.round(s.cp / 15)));
@@ -1645,6 +1812,12 @@ function abrirCaptura(s) {
     rar.style.background = corRgba(r.cor, 0.16);
   }
   document.getElementById('captura-msg').textContent = '';
+  document.getElementById('captura-tentativas').textContent = '';
+  const frutaBtn = document.getElementById('btn-fruta');
+  if (frutaBtn) {
+    frutaBtn.disabled = false;
+    frutaBtn.textContent = '🍇 Fruta';
+  }
   document.getElementById('btn-batalha').classList.toggle('oculto', !!s.raidRecompensa);
   if (s.raidRecompensa) {
     document.getElementById('captura-msg').textContent = `🏆 Recompensa da raid! Nível sorteado: ${lvl}.`;
@@ -1776,6 +1949,20 @@ function renderBolas(manterSelecao) {
 const MULT_BOLA = { poke: 1, great: 1.5, ultra: 2, master: 99 };
 document.getElementById('bola-select').addEventListener('change', atualizarChance);
 
+function renderBolasBatalha(manterSelecao) {
+  const sel = document.getElementById('b-bola-select');
+  if (!sel) return;
+  const anterior = manterSelecao ? sel.value : 'poke';
+  sel.innerHTML = `<option value="poke">🔴 Pokébola (∞)</option>
+    <option value="great" ${bolas.great < 1 ? 'disabled' : ''}>🔵 Great Ball ×${bolas.great}</option>
+    <option value="ultra" ${bolas.ultra < 1 ? 'disabled' : ''}>🟡 Ultra Ball ×${bolas.ultra}</option>
+    <option value="master" ${bolas.master < 1 ? 'disabled' : ''}>🟣 Master Ball ×${bolas.master}</option>`;
+  const aindaExiste = [...sel.options].some(o => o.value === anterior && !o.disabled);
+  sel.value = aindaExiste ? anterior : 'poke';
+  atualizarChanceBatalha();
+}
+document.getElementById('b-bola-select').addEventListener('change', atualizarChanceBatalha);
+
 // ===== LANÇAMENTO ARRASTANDO (estilo GO) =====
 const bolaEl = document.getElementById('bola-captura');
 const arenaEl = document.getElementById('captura-arena');
@@ -1836,7 +2023,7 @@ function resolverLancamento(bonusAnel = 0.5, bonusRating = 0) {
   }
   sfx('bola');
   capturaTremor = 1;
-  let chance = capturaComChance(0.22 + bonusAnel * 0.38 + bonusRating) * MULT_BOLA[bola];
+  let chance = chanceComBola(0.22 + bonusAnel * 0.38 + bonusRating, bola);
   if (bola === 'master') chance = 1;
   if (Math.random() < chance) {
     efeitosCaptura();
@@ -1846,16 +2033,23 @@ function resolverLancamento(bonusAnel = 0.5, bonusRating = 0) {
   }
   sfx('falha');
   toast('A bola quebrou!');
-  document.getElementById('captura-msg').textContent = '💨 Escapou! Enfraqueça mais ou use bola melhor.';
+  capturaAtual.tentativas = (capturaAtual.tentativas || 0) + 1;
   escalaMesh(1, 400);
-  capturaAtual.hp = Math.max(1, capturaAtual.hp - 5);
+  capturaAtual.hp = Math.max(1, capturaAtual.hp - 4);
   atualizarBarraHp();
-  if (Math.random() < 0.25) {
+  const chanceFuga = capturaAtual.raidRecompensa
+    ? 0
+    : Math.min(0.55, 0.12 + capturaAtual.tentativas * 0.07 + (capturaAtual.frutaUsada ? -0.05 : 0));
+  if (Math.random() < chanceFuga) {
     toast('O Pokémon fugiu!');
+    document.getElementById('captura-msg').textContent = '💨 O Pokémon fugiu! Use frutas e bolas melhores na próxima.';
     removerSelvagem(capturaAtual);
     capturaAtual = null;
-    document.getElementById('tela-captura').classList.add('oculto');
+    setTimeout(() => document.getElementById('tela-captura').classList.add('oculto'), 900);
+    return;
   }
+  document.getElementById('captura-msg').textContent = '💨 Escapou! Enfraqueça mais, use fruta ou bola melhor.';
+  atualizarChance();
 }
 
 function atualizarBarraHp() {
@@ -1871,14 +2065,30 @@ function atualizarBarraHp() {
   atualizarChance();
 }
 
+function bonusAnelAtual() {
+  return Math.max(0, Math.min(1, 1 - anelT));
+}
+
+function chanceComBola(base, bola) {
+  if (bola === 'master') return 1;
+  return Math.max(0.01, Math.min(0.98, capturaComChance(base) * (MULT_BOLA[bola] || 1)));
+}
+
 function chanceExibida() {
   if (!capturaAtual) return 0;
   const sel = document.getElementById('bola-select');
   const bola = (sel && sel.value) || 'poke';
-  if (bola === 'master') return 1;
-  let c = capturaComChance(0.52) * (MULT_BOLA[bola] || 1);
-  return Math.max(0.02, Math.min(1, c));
+  return chanceComBola(0.22 + bonusAnelAtual() * 0.38, bola);
 }
+
+function chanceBatalha() {
+  if (!capturaAtual) return 0;
+  const sel = document.getElementById('b-bola-select');
+  const bola = (sel && sel.value) || 'poke';
+  const hpBonus = Math.max(0, 1 - capturaAtual.hp / capturaAtual.hpMax) * 0.18;
+  return chanceComBola(0.30 + hpBonus, bola);
+}
+
 function atualizarChance() {
   const el = document.getElementById('captura-chance');
   if (!el || !capturaAtual) return;
@@ -1886,6 +2096,27 @@ function atualizarChance() {
   const cor = c > 0.6 ? '#4ade80' : c > 0.3 ? '#fbbf24' : '#f87171';
   el.innerHTML = `Chance de captura: <b style="color:${cor}">${Math.round(c * 100)}%</b>`;
   el.title = 'Solte a bola com o anel pequeno para aumentar a chance';
+  const bonus = document.getElementById('captura-bonus');
+  if (bonus) {
+    const anel = Math.round(bonusAnelAtual() * 100);
+    const fruta = capturaAtual.frutaBonus ? ` · 🍇 +${Math.round(capturaAtual.frutaBonus * 100)}%` : '';
+    bonus.textContent = `Anel: +${anel}%${fruta}`;
+  }
+  const tent = document.getElementById('captura-tentativas');
+  if (tent) {
+    tent.textContent = capturaAtual.tentativas
+      ? `Tentativas: ${capturaAtual.tentativas}${capturaAtual.frutaUsada ? ' · 🍇 fruta usada' : ''}`
+      : 'Enfraqueça o Pokémon e use uma fruta para facilitar!';
+  }
+  atualizarChanceBatalha();
+}
+
+function atualizarChanceBatalha() {
+  const el = document.getElementById('b-captura-chance');
+  if (!el || !capturaAtual) return;
+  const c = chanceBatalha();
+  const cor = c > 0.6 ? '#4ade80' : c > 0.3 ? '#fbbf24' : '#f87171';
+  el.innerHTML = `Chance: <b style="color:${cor}">${Math.round(c * 100)}%</b>`;
 }
 
 function capturaComChance(chanceBase) {
@@ -1896,10 +2127,13 @@ function capturaComChance(chanceBase) {
   const cpPenalty = capturaAtual.raidRecompensa
     ? Math.min(0.12, capturaAtual.cp / 2500)
     : Math.min(0.45, capturaAtual.cp / 800);
-  let chance = chanceBase + (1 - hpFrac) * 0.42 - cpPenalty - rar.captura;
+  const nivelAtual = capturaAtual.nivel || 1;
+  const nivelPenalty = capturaAtual.raidRecompensa ? 0 : Math.min(0.15, Math.max(0, nivelAtual - 1) * 0.0015);
+  const fruta = capturaAtual.frutaBonus || 0;
+  let chance = chanceBase + (1 - hpFrac) * 0.42 - cpPenalty - rar.captura - nivelPenalty + fruta;
   if (capturaAtual.shiny) chance -= 0.12;
   if (capturaAtual.raidRecompensa) chance += 0.32;
-  return Math.max(0.03, Math.min(0.92, chance));
+  return Math.max(0.03, Math.min(0.95, chance));
 }
 
 function efeitosCaptura() {
@@ -1950,11 +2184,27 @@ function concluirCaptura() {
   salvar();
 }
 
+document.getElementById('btn-fruta').onclick = () => {
+  if (!capturaAtual) return;
+  if (capturaAtual.frutaUsada) return toast('Você já usou uma fruta nesta captura!');
+  capturaAtual.frutaUsada = true;
+  capturaAtual.frutaBonus = FRUTA_BONUS;
+  const btn = document.getElementById('btn-fruta');
+  btn.disabled = true;
+  btn.textContent = '🍇 Fruta usada';
+  toast(`🍇 Fruta usada! +${Math.round(FRUTA_BONUS * 100)}% de chance e menos fugas.`);
+  sfx('coin');
+  atualizarChance();
+};
+
 document.getElementById('btn-atacar').onclick = () => {
   if (!capturaAtual) return;
   sfx('hit');
-  capturaAtual.hp -= 10 + Math.random() * 15;
-  if (capturaAtual.hp <= 0) { capturaAtual.hp = 1; toast('Cuidado! Quase nocauteou!'); }
+  const dano = Math.round(10 + Math.random() * 15);
+  capturaAtual.hp = Math.max(1, capturaAtual.hp - dano);
+  mostrarDano(document.getElementById('pokemon-spot'), `-${dano}`, '#f87171');
+  if (capturaAtual.hp <= 1) toast('Cuidado! Quase nocauteou!');
+  document.getElementById('captura-msg').textContent = `⚔️ -${dano} HP! HP baixo = mais chance de captura.`;
   atualizarBarraHp();
 };
 
@@ -1967,6 +2217,9 @@ document.getElementById('btn-fugir').onclick = () => {
 
 // ===== BATALHA =====
 let bVoce = null, bBusy = false;
+let bTurno = 0;
+let bLogLinhas = [];
+let ultimaChanceT = 0;
 
 document.getElementById('btn-batalha').onclick = () => {
   if (!capturaAtual) return;
@@ -1975,13 +2228,19 @@ document.getElementById('btn-batalha').onclick = () => {
   if (!time.length) return toast('Você não tem Pokémon no time!');
   const sel = document.getElementById('b-select');
   sel.innerHTML = time.map((p, i) => `<option value="${inventario.indexOf(p)}">${nomeExibicao(p)} CP ${p.cp} Nv ${p.nivel}</option>`).join('');
+  bTurno = 1;
+  resetLogBatalha();
   novaBatalhaJogador();
   const s = capturaAtual;
   const r = raridadeDe(ESPECIES[s.espec]);
   document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+  document.getElementById('b-status').textContent = 'Turno 1 · Sua vez';
   document.getElementById('b-arena').classList.remove('raid');
   document.getElementById('b-voce').classList.remove('oculto');
   document.getElementById('raid-time').classList.add('oculto');
+  document.getElementById('raid-energia').classList.add('oculto');
+  document.getElementById('raid-actions').classList.add('oculto');
+  document.getElementById('b-captura-area').classList.remove('oculto');
   document.getElementById('b-capturar').classList.remove('oculto');
   document.getElementById('b-fugir').textContent = '🏃 Fugir';
   document.getElementById('tela-batalha').classList.remove('oculto');
@@ -1995,7 +2254,8 @@ document.getElementById('btn-batalha').onclick = () => {
     tag.style.borderColor = r.cor;
     tag.style.background = corRgba(r.cor, 0.16);
   }
-  document.getElementById('b-wild-hp').style.width = (s.hp / s.hpMax * 100) + '%';
+  renderBolasBatalha();
+  atualizarHpBatalha();
   log('Um ' + nomeExibicao(s) + ' selvagem apareceu!');
   sfx('batalha');
   rugidoPokemon(s, 'batalha');
@@ -2008,10 +2268,27 @@ function novoHpVoce(comSom = true) {
   document.getElementById('b-voce-img').src = spriteUrl(p);
   document.getElementById('b-voce-hp').style.width = '100%';
   montarMoves();
+  atualizarHpBatalha();
   if (comSom) cry(p, 0.5);
 }
 function novaBatalhaJogador() { novoHpVoce(false); }
 document.getElementById('b-select').addEventListener('change', novoHpVoce);
+
+function atualizarHpBatalha() {
+  if (bVoce) {
+    const pct = Math.max(0, bVoce.hp / bVoce.hpMax * 100);
+    document.getElementById('b-voce-hp').style.width = pct + '%';
+    const txt = document.getElementById('b-voce-hp-txt');
+    if (txt) txt.textContent = `HP ${Math.max(0, Math.round(bVoce.hp))} / ${bVoce.hpMax}`;
+  }
+  if (capturaAtual) {
+    const pct = Math.max(0, capturaAtual.hp / capturaAtual.hpMax * 100);
+    document.getElementById('b-wild-hp').style.width = pct + '%';
+    const txt = document.getElementById('b-wild-hp-txt');
+    if (txt) txt.textContent = `HP ${Math.max(0, Math.round(capturaAtual.hp))} / ${capturaAtual.hpMax}`;
+  }
+  atualizarChanceBatalha();
+}
 
 const MOVES = {
   'Normal':   [{ n: 'Investida', p: 40 }, { n: 'Arranhão', p: 40 }, { n: 'Deslize', p: 70 }, { n: 'Hiper Raio', p: 150 }],
@@ -2038,10 +2315,45 @@ function montarMoves() {
   const p = bVoce.ref;
   const tipo = ESPECIES[p.espec].tipo;
   const moves = movesDo(tipo);
-  document.getElementById('b-moves').innerHTML = moves.map((m, i) => `<button onclick="atacar(${i})">${m.n}</button>`).join('');
+  document.getElementById('b-moves').innerHTML = moves.map((m, i) =>
+    `<button class="move-btn" onclick="atacar(${i})"><b>${m.n}</b><small>${m.p} poder</small></button>`
+  ).join('');
+  atualizarChanceBatalha();
 }
 
-function log(m) { document.getElementById('b-log').textContent = m; }
+function resetLogBatalha() {
+  bLogLinhas = [];
+  const el = document.getElementById('b-log');
+  if (el) el.innerHTML = '';
+}
+
+function log(m) {
+  bLogLinhas.unshift(String(m));
+  bLogLinhas = bLogLinhas.slice(0, 4);
+  const el = document.getElementById('b-log');
+  if (el) {
+    el.innerHTML = bLogLinhas
+      .map((linha, i) => `<div class="log-linha ${i === 0 ? 'atual' : ''}">${linha}</div>`)
+      .join('');
+  }
+}
+
+function mostrarDano(alvo, texto, cor = '#fff') {
+  if (!alvo) return;
+  const arena = alvo.closest('#b-arena, #captura-arena') || alvo.parentElement;
+  if (!arena) return;
+  const r = alvo.getBoundingClientRect();
+  const ar = arena.getBoundingClientRect();
+  const el = document.createElement('span');
+  el.className = 'dano-flutuante';
+  el.textContent = texto;
+  el.style.color = cor;
+  el.style.left = `${r.left - ar.left + r.width / 2}px`;
+  el.style.top = `${r.top - ar.top + r.height * 0.2}px`;
+  el.setAttribute('aria-hidden', 'true');
+  arena.appendChild(el);
+  setTimeout(() => el.remove(), 1050);
+}
 
 function msgEff(mul) {
   if (mul > 1) return 'É super efetivo!';
@@ -2055,6 +2367,38 @@ function eff2(atk, def) {
   return 1.0;
 }
 
+function turnoSelvagem() {
+  if (!capturaAtual || !bVoce) { bBusy = false; return; }
+  const tipoP = ESPECIES[bVoce.ref.espec].tipo;
+  const tipoW = ESPECIES[capturaAtual.espec].tipo;
+  const mvW = movesDo(tipoW)[Math.floor(Math.random() * movesDo(tipoW).length)];
+  const mulW = eff2(tipoW, tipoP);
+  const critW = Math.random() < 0.0625;
+  const dmgW = Math.max(1, Math.round((mvW.p / 14) * (0.5 + capturaAtual.cp / 400) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
+  bVoce.hp = Math.max(0, bVoce.hp - dmgW);
+  mostrarDano(document.getElementById('b-voce'), `-${dmgW}`, '#f87171');
+  atualizarHpBatalha();
+  sfx('hit');
+  log(`${nomeExibicao(capturaAtual)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
+  if (bVoce.hp <= 0) {
+    setTimeout(() => {
+      if (!bVoce) return;
+      cry(bVoce.ref, 0.45);
+      log(`${nomeExibicao(bVoce.ref)} desmaiou! O selvagem mantém ${Math.round(capturaAtual.hp / capturaAtual.hpMax * 100)}% de HP.`);
+      sfx('falha');
+      document.getElementById('b-status').textContent = 'Você foi derrotado...';
+      setTimeout(() => {
+        document.getElementById('tela-batalha').classList.add('oculto');
+        bBusy = false;
+      }, 1600);
+    }, 900);
+    return;
+  }
+  bTurno++;
+  document.getElementById('b-status').textContent = `Turno ${bTurno} · Sua vez`;
+  bBusy = false;
+}
+
 function atacar(i) {
   if (bBusy || !capturaAtual || !bVoce) return;
   bBusy = true;
@@ -2066,54 +2410,64 @@ function atacar(i) {
   const crit = Math.random() < 0.0625;
   const dmg = Math.max(1, Math.round((mv.p / 14) * (0.5 + p.cp / 400) * mul * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
   capturaAtual.hp = Math.max(0, capturaAtual.hp - dmg);
-  document.getElementById('b-wild-hp').style.width = (capturaAtual.hp / capturaAtual.hpMax * 100) + '%';
+  mostrarDano(document.getElementById('b-wild'), `-${dmg}`, '#f87171');
+  atualizarHpBatalha();
   atualizarBarraHp();
   sfx('hit');
   log(`${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
   if (capturaAtual.hp <= 0) {
     setTimeout(() => {
+      if (!capturaAtual) return;
       cry(capturaAtual, 0.55);
       log(`${nomeExibicao(capturaAtual)} desmaiou! Você ganhou XP!`);
       sfx('vitoria');
       ganharXp(25);
       removerSelvagem(capturaAtual);
       capturaAtual = null;
+      document.getElementById('b-status').textContent = 'Vitória!';
       setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); document.getElementById('tela-captura').classList.add('oculto'); bBusy = false; }, 1400);
     }, 900);
     return;
   }
-  setTimeout(() => {
-    const mvW = movesDo(tipoW)[Math.floor(Math.random() * movesDo(tipoW).length)];
-    const mulW = eff2(tipoW, tipoP);
-    const critW = Math.random() < 0.0625;
-    const dmgW = Math.max(1, Math.round((mvW.p / 14) * (0.5 + capturaAtual.cp / 400) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
-    bVoce.hp = Math.max(0, bVoce.hp - dmgW);
-    document.getElementById('b-voce-hp').style.width = (bVoce.hp / bVoce.hpMax * 100) + '%';
-    sfx('hit');
-    log(`${nomeExibicao(capturaAtual)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
-    if (bVoce.hp <= 0) {
-      setTimeout(() => {
-        cry(bVoce.ref, 0.45);
-        log(`${nomeExibicao(bVoce.ref)} desmaiou! O selvagem mantém ${Math.round(capturaAtual.hp / capturaAtual.hpMax * 100)}% de HP.`);
-        sfx('falha');
-        setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); bBusy = false; }, 1600);
-      }, 900);
-      return;
-    }
-    bBusy = false;
-  }, 1100);
+  document.getElementById('b-status').textContent = `Turno ${bTurno} · Oponente...`;
+  setTimeout(turnoSelvagem, 900);
 }
 
 document.getElementById('b-capturar').onclick = () => {
   if (!capturaAtual || bBusy) return;
-  const chance = capturaComChance(0.35);
-  if (Math.random() < chance) concluirCaptura();
-  else {
-    log('Escapou! O selvagem fugiu!');
+  const sel = document.getElementById('b-bola-select');
+  const bola = (sel && sel.value) || 'poke';
+  if (bola !== 'poke' && bolas[bola] < 1) return toast('Sem essa bola!');
+  bBusy = true;
+  sfx('bola');
+  const chance = chanceBatalha();
+  if (bola !== 'poke') {
+    bolas[bola]--;
+    renderBolasBatalha(true);
+  }
+  if (Math.random() < chance) {
+    const nomeBola = bola === 'master' ? 'Master Ball' : bola === 'ultra' ? 'Ultra Ball' : bola === 'great' ? 'Great Ball' : 'Pokébola';
+    log(`Você usou ${nomeBola} e capturou ${nomeExibicao(capturaAtual)}!`);
+    bBusy = false;
+    concluirCaptura();
+    return;
+  }
+  capturaAtual.tentativas = (capturaAtual.tentativas || 0) + 1;
+  log('A bola quebrou! O selvagem ainda está aqui...');
+  const chanceFuga = Math.min(0.55, 0.18 + capturaAtual.tentativas * 0.08 + (capturaAtual.frutaUsada ? -0.05 : 0));
+  if (Math.random() < chanceFuga) {
+    log('O selvagem fugiu!');
     removerSelvagem(capturaAtual);
     capturaAtual = null;
-    setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); document.getElementById('tela-captura').classList.add('oculto'); }, 1200);
+    setTimeout(() => {
+      document.getElementById('tela-batalha').classList.add('oculto');
+      document.getElementById('tela-captura').classList.add('oculto');
+      bBusy = false;
+    }, 1200);
+    return;
   }
+  document.getElementById('b-status').textContent = `Turno ${bTurno} · Oponente...`;
+  setTimeout(turnoSelvagem, 900);
 };
 
 document.getElementById('b-fugir').onclick = () => {
@@ -2277,7 +2631,7 @@ function renderItens() {
     <div class="item-row"><b>💎 Mega Pedras</b><span>× ${pedras}</span></div>
     <div class="item-row"><b>🍬 Doces</b><span>${totalDoces} no total</span></div>
     <div class="item-row"><b>🪙 Moedas</b><span>${moedas}</span></div>
-    ${incense ? `<div class="item-row admin-row"><b>🪔 Incenso de Aventura</b><span>∞ usos</span><button onclick="abrirAdmin()">⚙️ Abrir Admin</button></div>` : ''}`;
+    ${incense ? `<div class="item-row admin-row"><b>🪔 Incenso de Aventura</b><span>∞ usos</span><div class="item-row-acoes"><button onclick="abrirAdmin()">⚙️ Abrir Admin</button><button onclick="invocarRaid()">🚨 Spawnar raid</button></div></div>` : ''}`;
 }
 window.abrirAdmin = function () {
   document.getElementById('tela-admin').classList.remove('oculto');
@@ -2330,6 +2684,33 @@ window.darIncenso = function () {
   db[nome].data.incense = true;
   localStorage.setItem('pw_users', JSON.stringify(db));
   toast('🪔 Incenso enviado para ' + nome + '!');
+};
+
+window.invocarRaid = function () {
+  const status = document.getElementById('admin-raid-status');
+  const aviso = m => {
+    if (status) status.textContent = m;
+    toast(m);
+  };
+  if (!usuario) return aviso('Entre na sua conta primeiro!');
+  if (raidState) return aviso('Termine a raid atual antes de invocar outra.');
+  if (raidAtual) return aviso('Já existe uma raid ativa no mapa. Entre nela pelo banner!');
+  if (capturaAtual) return aviso('Termine a captura atual antes de invocar uma raid.');
+  if (inventario.filter(p => !p.pc).length < 3) return aviso('Você precisa de 3 Pokémon no time para invocar a raid.');
+  const menu = document.getElementById('tela-menu');
+  const login = document.getElementById('tela-login');
+  if ((menu && !menu.classList.contains('oculto')) || (login && !login.classList.contains('oculto'))) {
+    return aviso('Entre no jogo (Jogar) antes de invocar a raid.');
+  }
+  document.getElementById('tela-admin').classList.add('oculto');
+  document.getElementById('tela-inventario').classList.add('oculto');
+  raidProximaEm = 0;
+  const criada = iniciarRaid();
+  if (criada && raidAtual) {
+    if (status) status.textContent = `Raid de ${nomeExibicao(raidAtual)} invocada!`;
+  } else {
+    aviso('Não foi possível invocar a raid agora. Tente novamente.');
+  }
 };
 document.getElementById('tab-time').onclick = () => {
   document.getElementById('tab-time').classList.add('ativo');
@@ -2553,6 +2934,8 @@ if (window.ResizeObserver) {
 // ===== PVP =====
 let peer = null, conn = null, souHost = false, pvpTurno = false, pvpAtivo = false;
 let pvpEu = null, pvpAdv = null, pvpEuHp = 0, pvpAdvHp = 0;
+let pvpTurnoNum = 0, pvpBuff = 0, pvpEscudo = false, pvpAdvEscudo = false;
+let pvpLogLinhas = [], pvpFim = false;
 
 function abrirPvP() {
   const time = inventario.filter(p => !p.pc);
@@ -2562,12 +2945,23 @@ function abrirPvP() {
   document.getElementById('pvp-setup').classList.remove('oculto');
   document.getElementById('pvp-battle').classList.add('oculto');
   document.getElementById('pvp-status').textContent = '';
+  document.getElementById('pvp-turno').textContent = 'Aguardando conexão...';
+  document.getElementById('pvp-efeitos').textContent = '';
+  document.getElementById('pvp-log').innerHTML = '';
+  pvpFim = false;
+  pvpAtivo = false;
+  pvpTurno = false;
+  pvpBuff = 0;
+  pvpEscudo = false;
+  pvpAdvEscudo = false;
+  pvpLogLinhas = [];
 }
 document.getElementById('btn-pvp').onclick = abrirPvP;
 document.getElementById('pvp-fechar').onclick = () => document.getElementById('tela-pvp').classList.add('oculto');
 document.getElementById('pvp-sair').onclick = () => {
   if (conn) conn.close(); if (peer) peer.destroy();
-  peer = conn = null; pvpAtivo = false;
+  peer = conn = null; pvpAtivo = false; pvpTurno = false; pvpFim = false;
+  pvpBuff = 0; pvpEscudo = false; pvpAdvEscudo = false;
   document.getElementById('pvp-battle').classList.add('oculto');
   document.getElementById('pvp-setup').classList.remove('oculto');
 };
@@ -2605,6 +2999,7 @@ function setupConn() {
   conn.on('open', () => {
     pvpStatus('Conectado! Enviando seu Pokémon...');
     const p = meuPick();
+    if (!p) { pvpStatus('Escolha um Pokémon!'); return; }
     const e = ESPECIES[p.espec];
     const hpMax = Math.round(40 + p.cp / 4);
     pvpEu = { nome: nomeExibicao(p), cp: p.cp, tipo: e.tipo, url: spriteUrl(p), hpMax };
@@ -2612,77 +3007,196 @@ function setupConn() {
     conn.send({ t: 'hi', ...pvpEu });
   });
   conn.on('data', msg => {
+    if (!msg || !msg.t) return;
     if (msg.t === 'hi') {
-      pvpAdv = msg; pvpAdvHp = msg.hpMax;
+      pvpAdv = msg;
+      pvpAdvHp = msg.hpMax;
       iniciarBatalha();
-    } else if (msg.t === 'atk') {
-      pvpEuHp = Math.max(0, pvpEuHp - msg.dano);
+      return;
+    }
+    if (!pvpAtivo || !pvpAdv) return;
+    if (msg.t === 'atk') {
+      const dano = Math.max(1, Math.round(msg.dano || 0));
+      pvpEuHp = Math.max(0, pvpEuHp - dano);
+      pvpEscudo = false;
+      mostrarDano(document.getElementById('pvp-eu-img'), `-${dano}`, '#f87171');
       atualizarPvP();
-      logPvp(`${pvpAdv.nome} usou ataque! (-${msg.dano})`);
+      logPvp(`${pvpAdv.nome} usou ${msg.move || 'um ataque'}!${msg.crit ? ' Crítico!' : ''}${msg.bloqueado ? ' 🛡️ Você bloqueou parte!' : ''} (-${dano})`);
       if (pvpEuHp <= 0) {
-        conn.send({ t: 'ko' });
+        pvpFim = true;
+        if (conn && conn.send) conn.send({ t: 'ko' });
         fimPvP(false);
-      } else { pvpTurno = true; }
+      } else {
+        pvpTurno = true;
+        pvpTurnoNum++;
+        atualizarPvP();
+      }
+    } else if (msg.t === 'guard') {
+      pvpAdvEscudo = true;
+      logPvp(`${pvpAdv.nome} levantou a guarda! 🛡️`);
+      pvpTurno = true;
+      pvpTurnoNum++;
+      atualizarPvP();
+    } else if (msg.t === 'buff') {
+      logPvp(`${pvpAdv.nome} concentrou energia! 🔮`);
+      pvpTurno = true;
+      pvpTurnoNum++;
+      atualizarPvP();
     } else if (msg.t === 'ko') {
+      pvpFim = true;
+      fimPvP(true);
+    } else if (msg.t === 'surrender') {
+      pvpFim = true;
       fimPvP(true);
     }
   });
-  conn.on('close', () => { logPvp('Oponente desconectou.'); pvpAtivo = false; });
+  conn.on('close', () => {
+    pvpAtivo = false;
+    pvpTurno = false;
+    logPvp('Oponente desconectou.');
+    document.getElementById('pvp-turno').textContent = 'Oponente desconectou';
+    atualizarPvP();
+  });
 }
 
 function iniciarBatalha() {
+  if (!pvpEu) return;
   pvpAtivo = true;
+  pvpFim = false;
   pvpTurno = souHost;
+  pvpTurnoNum = 1;
+  pvpBuff = 0;
+  pvpEscudo = false;
+  pvpAdvEscudo = false;
+  pvpLogLinhas = [];
   document.getElementById('pvp-setup').classList.add('oculto');
   document.getElementById('pvp-battle').classList.remove('oculto');
   document.getElementById('pvp-eu-img').src = pvpEu.url;
   document.getElementById('pvp-eu-nome').textContent = pvpEu.nome + ' CP ' + pvpEu.cp;
   document.getElementById('pvp-adv-img').src = pvpAdv.url;
   document.getElementById('pvp-adv-nome').textContent = pvpAdv.nome + ' CP ' + pvpAdv.cp;
-  const e = ESPECIES[meuPick().espec];
-  document.getElementById('pvp-moves').innerHTML =
-    `<button onclick="pvpAtacar(0)">💥 ${e.tipo} Rápido</button>
-     <button onclick="pvpAtacar(1)">🤜 Investida</button>
-     <button onclick="pvpAtacar(2)">⚡ Carga Rápida</button>`;
+  const moves = movesDo(pvpEu.tipo);
+  document.getElementById('pvp-moves').innerHTML = moves.map((m, i) =>
+    `<button class="pvp-move" onclick="pvpAtacar(${i})"><b>${m.n}</b><small>${m.p} poder</small></button>`
+  ).join('');
   atualizarPvP();
-  logPvp(pvpTurno ? 'Sua vez de atacar!' : 'Vez do oponente...');
+  logPvp(pvpTurno ? 'Batalha iniciada! Sua vez.' : 'Batalha iniciada! Aguarde o oponente.');
 }
 
 function atualizarPvP() {
-  document.getElementById('pvp-eu-hp').style.width = (pvpEuHp / pvpEu.hpMax * 100) + '%';
-  document.getElementById('pvp-adv-hp').style.width = (pvpAdvHp / pvpAdv.hpMax * 100) + '%';
+  if (pvpEu) {
+    const pct = Math.max(0, pvpEuHp / pvpEu.hpMax * 100);
+    document.getElementById('pvp-eu-hp').style.width = pct + '%';
+    const txt = document.getElementById('pvp-eu-hp-txt');
+    if (txt) txt.textContent = `HP ${Math.max(0, Math.round(pvpEuHp))} / ${pvpEu.hpMax}`;
+  }
+  if (pvpAdv) {
+    const pct = Math.max(0, pvpAdvHp / pvpAdv.hpMax * 100);
+    document.getElementById('pvp-adv-hp').style.width = pct + '%';
+    const txt = document.getElementById('pvp-adv-hp-txt');
+    if (txt) txt.textContent = `HP ${Math.max(0, Math.round(pvpAdvHp))} / ${pvpAdv.hpMax}`;
+  }
+  const turno = document.getElementById('pvp-turno');
+  if (turno) {
+    if (pvpFim) turno.textContent = pvpEuHp <= 0 ? '💔 Você perdeu' : '🏆 Você venceu!';
+    else if (!pvpAtivo) turno.textContent = 'Aguardando conexão...';
+    else turno.textContent = pvpTurno ? `Turno ${pvpTurnoNum} · Sua vez` : `Turno ${pvpTurnoNum} · Vez do oponente...`;
+    turno.classList.toggle('minha', pvpAtivo && pvpTurno && !pvpFim);
+  }
+  const efeitos = document.getElementById('pvp-efeitos');
+  if (efeitos) {
+    const ativos = [];
+    if (pvpEscudo) ativos.push('🛡️ Guarda ativa');
+    if (pvpBuff) ativos.push('🔮 Próximo ataque +50%');
+    if (pvpAdvEscudo) ativos.push('🛡️ Oponente na guarda');
+    efeitos.textContent = ativos.join(' · ') || 'Sem efeitos ativos';
+  }
+  const bloquear = !pvpAtivo || !pvpTurno || pvpFim;
+  document.querySelectorAll('#pvp-moves button, #pvp-actions button').forEach(b => { b.disabled = bloquear; });
 }
 
-function logPvp(m) { document.getElementById('pvp-log').textContent = m; }
+function logPvp(m) {
+  pvpLogLinhas.unshift(String(m));
+  pvpLogLinhas = pvpLogLinhas.slice(0, 4);
+  const el = document.getElementById('pvp-log');
+  if (el) {
+    el.innerHTML = pvpLogLinhas
+      .map((linha, i) => `<div class="log-linha ${i === 0 ? 'atual' : ''}">${linha}</div>`)
+      .join('');
+  }
+}
 
 window.pvpAtacar = function (i) {
-  if (!pvpAtivo || !pvpTurno) return toast('Não é sua vez!');
-  const e = ESPECIES[meuPick().espec];
-  const meuTipo = i === 0 ? e.tipo : 'Normal';
-  const dmg = Math.round((6 + pvpEu.cp / 30) * eff(meuTipo, pvpAdv.tipo || 'Normal') * (0.85 + Math.random() * 0.3));
-  pvpAdvHp = Math.max(0, pvpAdvHp - dmg);
-  conn.send({ t: 'atk', dano: dmg });
-  atualizarPvP();
-  logPvp(`Você atacou! (-${dmg})`);
+  if (!pvpAtivo || !pvpTurno || pvpFim) return toast('Não é sua vez!');
+  if (!pvpEu || !pvpAdv) return;
+  const moves = movesDo(pvpEu.tipo);
+  const mv = moves[i] || moves[0];
+  const mul = eff2(pvpEu.tipo, pvpAdv.tipo || 'Normal');
+  const crit = Math.random() < 0.1;
+  const bloqueado = !!pvpAdvEscudo;
+  let dano = Math.round(
+    (mv.p / 4.8) *
+    (0.6 + Math.sqrt(Math.max(1, pvpEu.cp)) / 25) *
+    mul *
+    (crit ? 1.5 : 1) *
+    (0.9 + Math.random() * 0.2) *
+    (pvpBuff ? 1.5 : 1) *
+    (bloqueado ? 0.45 : 1)
+  );
+  dano = Math.max(1, dano);
+  pvpAdvHp = Math.max(0, pvpAdvHp - dano);
+  if (bloqueado) pvpAdvEscudo = false;
+  pvpBuff = 0;
+  mostrarDano(document.getElementById('pvp-adv-img'), `-${dano}`, '#f87171');
+  logPvp(`Você usou ${mv.n}!${crit ? ' Crítico!' : ''}${bloqueado ? ' 🛡️ Oponente bloqueou parte!' : ''} (-${dano})`);
   pvpTurno = false;
+  pvpTurnoNum++;
+  if (conn && conn.send) conn.send({ t: 'atk', dano, move: mv.n, crit, bloqueado });
   if (pvpAdvHp <= 0) {
-    conn.send({ t: 'ko' });
-    fimPvP(true);
+    pvpFim = true;
+    logPvp('O oponente desmaiou! Aguardando confirmação...');
+    atualizarPvP();
+    return;
   }
+  atualizarPvP();
+};
+
+window.pvpGuardar = function () {
+  if (!pvpAtivo || !pvpTurno || pvpFim) return toast('Não é sua vez!');
+  pvpEscudo = true;
+  pvpTurno = false;
+  pvpTurnoNum++;
+  logPvp('🛡️ Você levantou a guarda! O próximo ataque causará menos dano.');
+  if (conn && conn.send) conn.send({ t: 'guard' });
+  atualizarPvP();
+};
+
+window.pvpConcentrar = function () {
+  if (!pvpAtivo || !pvpTurno || pvpFim) return toast('Não é sua vez!');
+  pvpBuff = 1.5;
+  pvpTurno = false;
+  pvpTurnoNum++;
+  logPvp('🔮 Você concentrou energia! O próximo ataque será +50%.');
+  if (conn && conn.send) conn.send({ t: 'buff' });
+  atualizarPvP();
 };
 
 function fimPvP(venceu) {
+  if (!pvpAtivo) return;
   pvpAtivo = false;
+  pvpTurno = false;
+  pvpFim = true;
   if (venceu) {
     toast('🏆 Vitória no PvP! +50 XP e +50🪙');
-    moedas += 50; ganharXp(50);
+    moedas += 50;
+    ganharXp(50);
     logPvp('🏆 Você venceu!');
   } else {
     logPvp('💔 Você perdeu...');
     toast('Você perdeu a batalha PvP!');
   }
+  atualizarPvP();
   salvar();
-  pvpTurno = false;
 }
 
 // ===== TROCA =====

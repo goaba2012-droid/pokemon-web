@@ -512,6 +512,9 @@ select option { background: #14203a; color: var(--text); }
 #captura-hp-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #4ade80, #22c55e); transition: width .3s, background .3s; border-radius: 8px; }
 #captura-chance { font-size: .8rem; color: #b8c8e6; }
 #captura-chance b { color: var(--yellow); font-size: .92rem; }
+.captura-bonus { font-size: .74rem; font-weight: 800; color: #fde68a; }
+.captura-tentativas { font-size: .7rem; color: #93a4c4; min-height: 1.1em; }
+#btn-fruta:disabled { color: #93a4c4; }
 
 #bola-select {
   padding: 10px 18px; border-radius: 999px; font-weight: 700;
@@ -544,7 +547,21 @@ select option { background: #14203a; color: var(--text); }
 
 /* ===== BATALHA ===== */
 #tela-batalha { width: 640px; z-index: 72; }
+.batalha-status {
+  margin: 0 auto 9px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .045);
+  color: #fbbf24;
+  font-size: .76rem;
+  font-weight: 800;
+  text-align: center;
+  width: fit-content;
+  max-width: 100%;
+}
 #b-arena {
+  position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 18px 12px;
   border-radius: 18px;
@@ -573,8 +590,67 @@ select option { background: #14203a; color: var(--text); }
 #b-arena.raid .lutador { width: min(430px, 82%); }
 #b-moves { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 #b-moves button { font-size: .8rem; padding: 9px 13px; }
-#b-log { min-height: 2.4em; font-weight: 700; color: #9fd0ff; font-size: .84rem; text-align: center; }
+.move-btn, .pvp-move {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-width: 104px; line-height: 1.15;
+}
+.move-btn small, .pvp-move small { color: #9fb3d4; font-size: .6rem; font-weight: 700; }
+.hp-txt { color: #9fb3d4; font-size: .6rem; font-weight: 700; }
+.batalha-log {
+  min-height: 3.1em;
+  max-height: 4.8em;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  font-size: .8rem;
+  line-height: 1.25;
+}
+.log-linha { color: #7f93b5; opacity: .62; }
+.log-linha.atual { color: #9fd0ff; opacity: 1; font-weight: 800; }
+.dano-flutuante {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  font-size: 1.05rem;
+  font-weight: 900;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+  transform: translate(-50%, 0);
+  animation: subirDano 1s ease-out forwards;
+}
+@keyframes subirDano {
+  0% { opacity: 0; transform: translate(-50%, 4px) scale(.75); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -46px) scale(1.15); }
+}
+#raid-energia {
+  display: flex; align-items: center; gap: 9px;
+  margin: 8px auto 2px; width: min(430px, 100%);
+  font-size: .7rem; font-weight: 800; color: #fde68a;
+}
+.energia-bar { flex: 1; height: 9px; background: rgba(255, 255, 255, .12); border-radius: 8px; overflow: hidden; }
+#raid-energia-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #facc15, #f59e0b); border-radius: 8px; transition: width .3s; }
+#raid-energia-txt { min-width: 38px; text-align: right; color: #fde68a; }
+#raid-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+#raid-actions button { font-size: .76rem; padding: 9px 14px; }
+#raid-actions button:disabled { opacity: .42; }
+.captura-batalha {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  flex-wrap: wrap; margin-top: 4px; font-size: .76rem; color: #b8c8e6;
+}
+#b-bola-select {
+  padding: 7px 12px; border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .2);
+  color: #fff; font-weight: 700; max-width: 100%;
+}
+#b-captura-chance b { font-size: .9rem; }
+.raid-hp-txt { color: #9fb3d4; font-size: .56rem; font-weight: 800; }
+.raid-mon.pode-trocar { cursor: pointer; }
+.raid-mon.pode-trocar:hover { border-color: #fbbf24; opacity: .9; }
 #raid-time {
+  position: relative;
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px; margin: 10px 0 4px;
 }
@@ -695,6 +771,8 @@ select option { background: #14203a; color: var(--text); }
 }
 .item-row span { color: var(--yellow); font-weight: 800; }
 .admin-row { border-color: rgba(255, 203, 5, .35); background: rgba(255, 203, 5, .08); }
+.item-row-acoes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.item-row-acoes button { font-size: .7rem; padding: 6px 9px; box-shadow: none; }
 
 /* ===== LOJA ===== */
 #loja-lista { display: flex; flex-direction: column; gap: 10px; }
@@ -758,6 +836,8 @@ select option { background: #14203a; color: var(--text); }
 .campo-largo { width: 100%; }
 #admin-poke { margin-top: 6px; }
 #admin-poke option { padding: 4px 8px; }
+.admin-dica { font-size: .78rem; color: #a7b9d8; margin-bottom: 9px; }
+.admin-status { min-height: 1.1em; margin-top: 7px; font-size: .76rem; font-weight: 700; color: #7dd3fc; text-align: center; }
 
 /* ===== PVP / TROCA ===== */
 .pvp-setup, #pvp-battle, #troca-setup { display: flex; flex-direction: column; gap: 12px; }
@@ -785,7 +865,7 @@ select option { background: #14203a; color: var(--text); }
     rgba(255, 255, 255, .03);
   border: 1px solid var(--line);
 }
-.pvp-lado { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 42%; font-size: .8rem; }
+.pvp-lado { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 42%; font-size: .8rem; }
 .pvp-lado img {
   width: 104px; height: 104px; image-rendering: pixelated;
   background: radial-gradient(circle, rgba(255, 255, 255, .15), transparent 70%);
@@ -794,7 +874,26 @@ select option { background: #14203a; color: var(--text); }
 }
 #pvp-moves { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 #pvp-moves button { font-size: .8rem; padding: 9px 13px; }
-#pvp-log { min-height: 2.2em; text-align: center; font-weight: 700; font-size: .85rem; color: #9fd0ff; }
+.pvp-turno {
+  text-align: center;
+  font-size: .84rem;
+  font-weight: 900;
+  color: #fbbf24;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .045);
+}
+.pvp-turno.minha {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, .4);
+  background: rgba(74, 222, 128, .08);
+  box-shadow: 0 0 16px rgba(74, 222, 128, .12);
+}
+.pvp-efeitos { min-height: 1.2em; text-align: center; font-size: .72rem; font-weight: 700; color: #a7b9d8; }
+#pvp-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+#pvp-actions button { font-size: .78rem; padding: 9px 13px; }
+#pvp-log { min-height: 3.1em; max-height: 4.8em; overflow: hidden; }
 .troca-oferta {
   min-height: 1.4em;
   padding: 10px 14px;
@@ -855,6 +954,12 @@ select option { background: #14203a; color: var(--text); }
   #raid-nome { font-size: .84rem; margin: 4px 0 2px; }
   #raid-shiny { font-size: .6rem; margin-bottom: 7px; }
   #raid-entrar { padding: 8px 10px; font-size: .78rem; }
+  .batalha-status { font-size: .68rem; padding: 5px 9px; }
+  .move-btn, .pvp-move { min-width: 88px; }
+  #raid-energia { width: 100%; font-size: .64rem; }
+  #raid-actions button { font-size: .68rem; padding: 8px 10px; }
+  .captura-batalha { gap: 6px; font-size: .68rem; }
+  .item-row-acoes { width: 100%; justify-content: flex-start; }
   .raid-mon { padding: 6px 4px; border-radius: 11px; }
   .raid-mon img { width: 44px; height: 44px; }
   .raid-mon b { font-size: .6rem; }
