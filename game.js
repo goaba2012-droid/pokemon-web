@@ -54,6 +54,99 @@ const ESPECIES = [
   { nome: 'Suicune',   id: 245, tipo: 'Água',     raridade: 0.008,hp: 160, biome: 'praia',    lendario: true },
 ];
 
+// ===== RARIDADE =====
+// Cada espécie recebe um tier visível. O peso de spawn é separado da raridade
+// exibida: lendários/míticos aparecem muito menos e são bem mais difíceis de capturar.
+const RARIDADES = {
+  comum:    { nome: 'Comum',    cor: '#94a3b8', peso: 1,    captura: 0 },
+  incomum:  { nome: 'Incomum',  cor: '#4ade80', peso: 1,    captura: 0.03 },
+  raro:     { nome: 'Raro',     cor: '#38bdf8', peso: 1,    captura: 0.08 },
+  epico:    { nome: 'Épico',    cor: '#a855f7', peso: 1,    captura: 0.14 },
+  lendario: { nome: 'Lendário', cor: '#f59e0b', peso: 0.06, captura: 0.22 },
+  mitico:   { nome: 'Mítico',   cor: '#f43f5e', peso: 0.03, captura: 0.28 },
+};
+
+// IDs de lendários e míticos de todas as gerações (usados pela PokéAPI e pelas raids).
+const LENDARIOS = new Set([
+  144, 145, 146, 150,
+  243, 244, 245, 249, 250,
+  377, 378, 379, 380, 381, 382, 383, 384,
+  480, 481, 482, 483, 484, 485, 486, 487, 488,
+  638, 639, 640, 641, 642, 643, 644, 645, 646,
+  716, 717, 718,
+  772, 773, 785, 786, 787, 788, 789, 790, 791, 792, 800,
+  793, 794, 795, 796, 797, 798, 799, 803, 804, 805, 806,
+  888, 889, 890, 891, 892, 894, 895, 896, 897, 898, 905,
+  1001, 1002, 1003, 1004, 1007, 1008, 1014, 1015, 1016, 1017, 1024,
+]);
+const MITICOS = new Set([
+  151, 251, 385, 386, 489, 490, 491, 492, 493, 494,
+  647, 648, 649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 1025,
+]);
+const PSEUDO_LENDARIOS = new Set([149, 248, 373, 376, 445, 635, 706, 784, 887, 998]);
+const RARIDADE_EXTRA = { comum: 0.004, incomum: 0.0022, raro: 0.0012, epico: 0.0005, lendario: 0.00012, mitico: 0.00006 };
+
+// Tipos dos lendários/míticos que vêm da PokéAPI (a listagem não traz tipos).
+const TIPOS_EXTRAS = {
+  151: 'Psíquico', 243: 'Elétrico', 244: 'Fogo', 245: 'Água', 249: 'Psíquico', 250: 'Fogo', 251: 'Planta',
+  377: 'Pedra', 378: 'Gelo', 379: 'Aço', 380: 'Dragão', 381: 'Dragão', 382: 'Água', 383: 'Terra', 384: 'Dragão',
+  385: 'Aço', 386: 'Psíquico', 480: 'Psíquico', 481: 'Psíquico', 482: 'Psíquico', 483: 'Dragão', 484: 'Dragão',
+  485: 'Fogo', 486: 'Normal', 487: 'Fantasma', 488: 'Psíquico', 489: 'Água', 490: 'Água', 491: 'Fantasma',
+  492: 'Planta', 493: 'Normal', 494: 'Fogo', 638: 'Luta', 639: 'Pedra', 640: 'Planta', 641: 'Voador',
+  642: 'Elétrico', 643: 'Dragão', 644: 'Dragão', 645: 'Terra', 646: 'Dragão', 647: 'Água', 648: 'Normal',
+  649: 'Inseto', 716: 'Fada', 717: 'Voador', 718: 'Dragão', 719: 'Pedra', 720: 'Psíquico', 721: 'Fogo',
+  772: 'Normal', 773: 'Normal', 785: 'Elétrico', 786: 'Psíquico', 787: 'Planta', 788: 'Água', 789: 'Psíquico',
+  790: 'Psíquico', 791: 'Psíquico', 792: 'Psíquico', 793: 'Pedra', 794: 'Inseto', 795: 'Inseto', 796: 'Elétrico',
+  797: 'Voador', 798: 'Planta', 799: 'Dragão', 800: 'Psíquico', 801: 'Fada', 802: 'Luta', 803: 'Veneno',
+  804: 'Veneno', 805: 'Pedra', 806: 'Fogo', 807: 'Elétrico', 808: 'Aço', 809: 'Aço', 888: 'Fada', 889: 'Luta',
+  890: 'Veneno', 891: 'Luta', 892: 'Luta', 893: 'Planta', 894: 'Elétrico', 895: 'Dragão', 896: 'Gelo',
+  897: 'Fantasma', 898: 'Psíquico', 905: 'Fada', 1001: 'Planta', 1002: 'Gelo', 1003: 'Terra', 1004: 'Fogo',
+  1007: 'Dragão', 1008: 'Elétrico', 1014: 'Luta', 1015: 'Veneno', 1016: 'Fada', 1017: 'Planta', 1024: 'Normal',
+  1025: 'Veneno',
+  149: 'Dragão', 248: 'Pedra', 373: 'Dragão', 376: 'Psíquico', 445: 'Dragão', 635: 'Dragão', 706: 'Dragão',
+  784: 'Dragão', 887: 'Dragão', 998: 'Dragão',
+};
+
+function tierPorId(id) {
+  if (MITICOS.has(id)) return 'mitico';
+  if (LENDARIOS.has(id)) return 'lendario';
+  if (PSEUDO_LENDARIOS.has(id)) return 'epico';
+  const h = ((id * 2654435761) >>> 0) % 1000;
+  if (h < 30) return 'epico';
+  if (h < 160) return 'raro';
+  if (h < 450) return 'incomum';
+  return 'comum';
+}
+
+function classificarRaridade(e) {
+  if (e.tier) return e.tier;
+  if (e.mitico) return 'mitico';
+  if (e.lendario) return 'lendario';
+  if (e.extra) return tierPorId(e.id);
+  if (e.raridade >= 0.12) return 'comum';
+  if (e.raridade >= 0.07) return 'incomum';
+  if (e.raridade >= 0.025) return 'raro';
+  if (e.raridade > 0) return 'epico';
+  // Evoluções locais não aparecem selvagens: a raridade vem do porte/força.
+  if (e.mega || e.hp >= 120) return 'epico';
+  if (e.hp >= 95) return 'raro';
+  if (e.hp >= 75) return 'incomum';
+  return 'comum';
+}
+function tierDe(e) { return e.tier || classificarRaridade(e); }
+function raridadeDe(e) { return RARIDADES[tierDe(e)] || RARIDADES.comum; }
+function pesoRaridade(e) {
+  const r = raridadeDe(e);
+  return (e.raridade || 0) * (r.peso || 1);
+}
+function corRgba(hex, a) {
+  const n = parseInt(String(hex).replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function definirTiers() {
+  for (const e of ESPECIES) e.tier = classificarRaridade(e);
+}
+
 // Carrega TODOS os Pokémon de todas as gerações pela PokéAPI
 async function carregarTodos() {
   try {
@@ -66,7 +159,16 @@ async function carregarTodos() {
       if (p.name.includes('-mega') || p.name.includes('gmax')) continue;
       const id = parseInt(p.url.split('/').filter(Boolean).pop());
       if (ESPECIES.some(e => e.id === id)) continue;
-      ESPECIES.push({ nome: p.name[0].toUpperCase() + p.name.slice(1), id, tipo: '?', raridade: 0.03, hp: 70, biome: 'todos' });
+      const tier = tierPorId(id);
+      const lendario = tier === 'lendario';
+      const mitico = tier === 'mitico';
+      ESPECIES.push({
+        nome: p.name[0].toUpperCase() + p.name.slice(1), id, tipo: TIPOS_EXTRAS[id] || '?',
+        raridade: RARIDADE_EXTRA[tier], hp: mitico ? 150 : lendario ? 160 : tier === 'epico' ? 120 : 70,
+        biome: 'todos', tier, extra: true,
+        ...(lendario ? { lendario: true } : {}),
+        ...(mitico ? { mitico: true } : {}),
+      });
     }
     // Detecta megas automaticamente para todas as espécies
     for (const e of ESPECIES) {
@@ -80,6 +182,7 @@ async function carregarTodos() {
       }
     }
   } catch (e) { /* offline: usa a lista local */ }
+  definirTiers();
   const txt = document.getElementById('loading-text');
   if (txt) txt.textContent = ESPECIES.length + ' Pokémon carregados!';
   return ESPECIES.length;
@@ -92,6 +195,7 @@ const FORTE = {
   'Veneno': ['Planta', 'Fada'], 'Terra': ['Fogo', 'Elétrico', 'Pedra', 'Veneno'], 'Voador': ['Planta', 'Luta'],
   'Psíquico': ['Luta', 'Veneno'], 'Fantasma': ['Fantasma', 'Psíquico'], 'Dragão': ['Dragão'],
   'Fada': ['Luta', 'Dragão'], 'Pedra': ['Fogo', 'Gelo', 'Voador', 'Inseto'], 'Normal': [],
+  'Aço': ['Fada', 'Gelo', 'Pedra'], 'Sombra': ['Psíquico', 'Fantasma'],
 };
 const eff = (atk, def) => (FORTE[atk] || []).includes(def) ? 1.6 : 1.0;
 
@@ -99,7 +203,8 @@ const TIPO_COR = {
   'Normal': '#8d99ae', 'Fogo': '#f97316', 'Água': '#3b82f6', 'Planta': '#22c55e',
   'Elétrico': '#eab308', 'Gelo': '#67e8f9', 'Luta': '#dc2626', 'Veneno': '#a855f7',
   'Terra': '#b45309', 'Voador': '#818cf8', 'Psíquico': '#ec4899', 'Fantasma': '#7c3aed',
-  'Dragão': '#4f46e5', 'Fada': '#f472b6', 'Pedra': '#a16207', 'Inseto': '#84cc16', '?': '#64748b',
+  'Dragão': '#4f46e5', 'Fada': '#f472b6', 'Pedra': '#a16207', 'Inseto': '#84cc16',
+  'Aço': '#94a3b8', 'Sombra': '#475569', '?': '#64748b',
 };
 const corTipo = t => TIPO_COR[t] || '#64748b';
 
@@ -163,9 +268,15 @@ function spriteUrl(s) {
   if (s.mega && e.mega) return s.shiny ? SPR_SHINY(e.mega.id) : SPR(e.mega.id);
   return s.shiny ? SPR_SHINY(e.id) : SPR(e.id);
 }
+function nomeEspecie(e) {
+  if (!e) return '???';
+  if (!e.extra) return e.nome;
+  return e.nome.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 function nomeExibicao(s) {
   const e = ESPECIES[s.espec];
-  const base = s.mega && e.mega ? e.mega.nome : e.nome;
+  if (!e) return '???';
+  const base = s.mega && e.mega ? e.mega.nome : nomeEspecie(e);
   return (s.shiny ? '✨ Shiny ' : '') + base;
 }
 
@@ -219,15 +330,13 @@ function raizDe(idx) {
 }
 
 function especieAleatoria() {
-  const pool = ESPECIES.filter(e => (e.biome === biomeAtual || e.biome === 'todos' || e.lendario) && e.raridade > 0);
-  const principais = pool.filter(e => e.biome !== 'todos');
-  const extras = pool.filter(e => e.biome === 'todos');
-  const lista = (Math.random() < 0.5 && extras.length) ? extras : principais;
-  if (!lista.length) return 0;
-  const total = lista.reduce((s, e) => s + (e.raridade || 0.05), 0);
+  const pool = ESPECIES.filter(e => (e.biome === biomeAtual || e.biome === 'todos' || e.lendario || e.mitico) && e.raridade > 0);
+  if (!pool.length) return 0;
+  // Pesos por raridade: quanto mais raro, menor a chance de aparecer.
+  const total = pool.reduce((s, e) => s + pesoRaridade(e), 0);
   let r = Math.random() * total;
-  for (const e of lista) { r -= (e.raridade || 0.05); if (r <= 0) return ESPECIES.indexOf(e); }
-  return ESPECIES.indexOf(lista[0]);
+  for (const e of pool) { r -= pesoRaridade(e); if (r <= 0) return ESPECIES.indexOf(e); }
+  return ESPECIES.indexOf(pool[0]);
 }
 
 // ===== THREE.JS =====
@@ -913,18 +1022,19 @@ function spawnSelvagem() {
   const idx = especieAleatoria();
   const e = ESPECIES[idx];
   if (!e) return;
+  const tier = tierDe(e);
   const shiny = Math.random() < Math.min(0.08, 0.015 + nivel * 0.001);
-  const cp = Math.round(10 + Math.random() * 15 * nivel * (e.lendario ? 2.5 : 1));
+  const cp = Math.round(10 + Math.random() * 15 * nivel * (tier === 'lendario' || tier === 'mitico' ? 2.5 : 1));
   const ang = Math.random() * Math.PI * 2;
   const dist = 10 + Math.random() * 25;
   const s = {
-    espec: idx, pokeId: e.id, cp, shiny, mega: false,
+    espec: idx, pokeId: e.id, cp, shiny, mega: false, tier,
     x: Math.max(-140, Math.min(140, player.x + Math.cos(ang) * dist)),
     y: Math.max(-140, Math.min(140, player.y + Math.sin(ang) * dist)),
     hp: e.hp, hpMax: e.hp, bob: Math.random() * 6,
   };
 
-  const escala = (e.lendario ? 1.38 : 1) * (shiny ? 1.1 : 1);
+  const escala = ((tier === 'lendario' || tier === 'mitico') ? 1.38 : tier === 'epico' ? 1.12 : 1) * (shiny ? 1.1 : 1);
   const mat3d = materialArte(artUrl(s));
   const g = new THREE.Group();
   const p1 = new THREE.Mesh(new THREE.PlaneGeometry(5 * escala, 5 * escala), mat3d);
@@ -939,7 +1049,7 @@ function spawnSelvagem() {
   sombra.rotation.x = -Math.PI / 2;
   sombra.position.y = -2.42;
 
-  const corAnel = shiny ? 0xffd54f : e.lendario ? 0xa855f7 : new THREE.Color(corTipo(e.tipo)).getHex();
+  const corAnel = shiny ? 0xffd54f : new THREE.Color(raridadeDe(e).cor).getHex();
   const anel = new THREE.Mesh(
     new THREE.RingGeometry(2.0 * escala, 2.35 * escala, 32),
     new THREE.MeshBasicMaterial({ color: corAnel, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })
@@ -948,10 +1058,10 @@ function spawnSelvagem() {
   anel.position.y = -2.43;
 
   g.add(p1, p2, sombra, anel);
-  if (shiny || e.lendario) {
-    const brilho = criarBrilho(shiny ? 0xffe082 : 0xc084fc, 8 * escala);
+  if (shiny || tier === 'raro' || tier === 'epico' || tier === 'lendario' || tier === 'mitico') {
+    const brilho = criarBrilho(shiny ? 0xffe082 : corAnel, (tier === 'lendario' || tier === 'mitico' ? 9 : 7) * escala);
     brilho.position.y = 0.2;
-    brilho.material.opacity = 0.55;
+    brilho.material.opacity = tier === 'lendario' || tier === 'mitico' ? 0.62 : 0.42;
     g.add(brilho);
   }
   g.position.set(s.x, 2.5, s.y);
@@ -961,18 +1071,349 @@ function spawnSelvagem() {
   scene.add(g);
   selvagens.push(s);
 }
-setInterval(() => { if (selvagens.length < 6 && !capturaAtual) spawnSelvagem(); }, 2500);
+setInterval(() => { if (selvagens.filter(x => !x.raid).length < 6 && !capturaAtual) spawnSelvagem(); }, 2500);
 
 function removerSelvagem(s) {
-  scene.remove(s.grupo);
+  if (!s) return;
+  if (s.grupo) scene.remove(s.grupo);
   selvagens = selvagens.filter(x => x !== s);
 }
+
+// ===== RAIDS LENDÁRIAS =====
+let raidAtual = null;
+let raidState = null;
+let raidExpiraEm = 0;
+let raidSegAnterior = -1;
+let raidUltimoId = 0;
+let raidProximaEm = Date.now() + 60000;
+
+function agendarProximaRaid(primeira = false) {
+  const min = primeira ? 45 : 150;
+  const max = primeira ? 90 : 300;
+  raidProximaEm = Date.now() + (min + Math.random() * (max - min)) * 1000;
+}
+function esconderBannerRaid() {
+  const el = document.getElementById('raid-alerta');
+  if (el) el.classList.add('oculto');
+}
+function atualizarBannerRaid() {
+  if (!raidAtual) { esconderBannerRaid(); return; }
+  const seg = Math.max(0, Math.ceil((raidExpiraEm - Date.now()) / 1000));
+  if (seg === raidSegAnterior) return;
+  raidSegAnterior = seg;
+  const t = document.getElementById('raid-timer');
+  if (t) t.textContent = `${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')}`;
+}
+function expirarRaid() {
+  if (!raidAtual || raidState) return;
+  const s = raidAtual;
+  raidAtual = null;
+  removerSelvagem(s);
+  esconderBannerRaid();
+  agendarProximaRaid();
+  toast('⌛ A raid lendária desapareceu...');
+}
+
+function iniciarRaid() {
+  if (raidAtual || raidState || capturaAtual) return;
+  const menu = document.getElementById('tela-menu');
+  const login = document.getElementById('tela-login');
+  if (!usuario || (menu && !menu.classList.contains('oculto')) || (login && !login.classList.contains('oculto'))) return;
+  if (inventario.filter(p => !p.pc).length < 3) {
+    raidProximaEm = Date.now() + 30000;
+    return;
+  }
+  const pool = ESPECIES.filter(e => (e.lendario || e.mitico) && e.id && e.id !== raidUltimoId);
+  if (!pool.length) { raidProximaEm = Date.now() + 60000; return; }
+  const e = pool[Math.floor(Math.random() * pool.length)];
+  const idx = ESPECIES.indexOf(e);
+  const tier = tierDe(e);
+  const ang = Math.random() * Math.PI * 2;
+  const dist = 14 + Math.random() * 12;
+  const s = {
+    espec: idx, pokeId: e.id, raid: true, tier, nivel: 150,
+    cp: 150 * 15 + Math.floor(Math.random() * 300),
+    shiny: false, mega: false, hp: 1, hpMax: 1, bob: Math.random() * 6,
+    x: Math.max(-140, Math.min(140, player.x + Math.cos(ang) * dist)),
+    y: Math.max(-140, Math.min(140, player.y + Math.sin(ang) * dist)),
+  };
+
+  const escala = tier === 'mitico' ? 2.9 : 2.6;
+  const mat3d = materialArte(artUrl(s));
+  const g = new THREE.Group();
+  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(5 * escala, 5 * escala), mat3d);
+  const p2 = new THREE.Mesh(new THREE.PlaneGeometry(5 * escala, 5 * escala), mat3d);
+  p2.rotation.y = Math.PI / 2;
+  p1.position.y = 0.2; p2.position.y = 0.2;
+
+  const sombra = new THREE.Mesh(
+    new THREE.CircleGeometry(2.7, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false })
+  );
+  sombra.rotation.x = -Math.PI / 2;
+  sombra.position.y = -2.42;
+
+  const anel = new THREE.Mesh(
+    new THREE.RingGeometry(3.7, 4.35, 40),
+    new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
+  );
+  anel.rotation.x = -Math.PI / 2;
+  anel.position.y = -2.43;
+
+  const brilho = criarBrilho(tier === 'mitico' ? 0xf43f5e : 0xf59e0b, 17);
+  brilho.position.y = 0.2;
+  brilho.material.opacity = 0.7;
+
+  const pilar = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.2, 2.2, 20, 18, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false })
+  );
+  pilar.position.y = 8;
+
+  g.add(p1, p2, sombra, anel, brilho, pilar);
+  g.position.set(s.x, 2.5, s.y);
+  g.userData.s = s;
+  g.userData.anel = anel;
+  s.grupo = g;
+  scene.add(g);
+  selvagens.push(s);
+
+  raidAtual = s;
+  raidUltimoId = e.id;
+  raidExpiraEm = Date.now() + 120000;
+  raidSegAnterior = -1;
+  const nome = document.getElementById('raid-nome');
+  if (nome) nome.textContent = `${nomeExibicao(s)} · Nv 150`;
+  const alerta = document.getElementById('raid-alerta');
+  if (alerta) alerta.classList.remove('oculto');
+  atualizarBannerRaid();
+  toast(`🚨 RAID LENDÁRIA! ${nomeExibicao(s)} nível 150 apareceu!`);
+  sfx('batalha');
+  rugidoPokemon(s, 'batalha');
+}
+
+function renderRaidTime() {
+  if (!raidState) return;
+  const el = document.getElementById('raid-time');
+  if (!el) return;
+  el.innerHTML = raidState.mons.map((m, i) => {
+    const ativo = i === raidState.idx;
+    const nocaute = m.hp <= 0;
+    return `<div class="raid-mon ${ativo ? 'ativo' : ''} ${nocaute ? 'nocauteado' : ''}">
+      <img src="${spriteUrl(m.ref)}" alt="${nomeExibicao(m.ref)}">
+      <b>${nomeExibicao(m.ref)}</b>
+      <small>CP ${m.ref.cp} · Nv ${m.ref.nivel}</small>
+      <div class="hpbar"><div style="width:${Math.max(0, m.hp / m.hpMax * 100)}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function montarMovesRaid() {
+  if (!raidState) return;
+  const p = raidState.mons[raidState.idx].ref;
+  const moves = movesDo(ESPECIES[p.espec].tipo);
+  document.getElementById('b-moves').innerHTML = moves.map((m, i) => `<button onclick="atacarRaid(${i})">${m.n}</button>`).join('');
+}
+
+function entrarRaid(s) {
+  if (!s || !s.raid || raidState) return;
+  if (capturaAtual && capturaAtual !== s) return;
+  const time = inventario.filter(p => !p.pc);
+  if (time.length < 3) return toast('⚠️ Você precisa de 3 Pokémon no time para entrar na raid!');
+  const equipe = [...time].sort((a, b) => b.cp - a.cp).slice(0, 3);
+  const somaCp = equipe.reduce((a, p) => a + p.cp, 0);
+  const bossHpMax = Math.max(300, Math.round(180 + somaCp * 0.9 + nivel * 4));
+  const mons = equipe.map(p => {
+    const hp = Math.round(140 + p.cp / 2.5);
+    return { ref: p, hp, hpMax: hp };
+  });
+  raidState = { boss: s, mons, idx: 0, bossHpMax, bossHp: bossHpMax, busy: false };
+  capturaAtual = s;
+  bBusy = false;
+  raidExpiraEm = Date.now() + 180000;
+  esconderBannerRaid();
+
+  const e = ESPECIES[s.espec];
+  const r = raridadeDe(e);
+  document.getElementById('b-titulo').textContent = '⚔️ Raid lendária · Nv 150';
+  document.getElementById('b-wild-img').src = spriteUrl(s);
+  document.getElementById('b-wild-nome').textContent = `${nomeExibicao(s)} · Nv 150 · CP ${s.cp}`;
+  const tag = document.getElementById('b-wild-raridade');
+  if (tag) {
+    tag.textContent = r.nome;
+    tag.style.color = r.cor;
+    tag.style.borderColor = r.cor;
+    tag.style.background = corRgba(r.cor, 0.16);
+  }
+  document.getElementById('b-wild-hp').style.width = '100%';
+  document.getElementById('b-arena').classList.add('raid');
+  document.getElementById('b-voce').classList.add('oculto');
+  document.getElementById('raid-time').classList.remove('oculto');
+  document.getElementById('b-capturar').classList.add('oculto');
+  document.getElementById('b-fugir').textContent = '🏃 Sair da raid';
+  document.getElementById('tela-batalha').classList.remove('oculto');
+  renderRaidTime();
+  montarMovesRaid();
+  log(`Raid lendária! ${nomeExibicao(s)} Nv 150 enfrenta os 3 Pokémon mais fortes do seu time.`);
+  sfx('batalha');
+  rugidoPokemon(s, 'batalha');
+}
+
+function atacarRaid(i) {
+  if (!raidState || raidState.busy) return;
+  const st = raidState;
+  const ativo = st.mons[st.idx];
+  if (!ativo || ativo.hp <= 0) return;
+  st.busy = true;
+  const p = ativo.ref;
+  const tipoP = ESPECIES[p.espec].tipo;
+  const tipoW = ESPECIES[st.boss.espec].tipo;
+  const mv = movesDo(tipoP)[i] || movesDo(tipoP)[0];
+  const mul = eff2(tipoP, tipoW);
+  const crit = Math.random() < 0.1;
+  const dmg = Math.max(8, Math.round((mv.p / 14) * (0.5 + p.cp / 400) * mul * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.3) * 10.5));
+  st.bossHp = Math.max(0, st.bossHp - dmg);
+  document.getElementById('b-wild-hp').style.width = (st.bossHp / st.bossHpMax * 100) + '%';
+  sfx('hit');
+  log(`${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
+
+  if (st.bossHp <= 0) {
+    setTimeout(vitoriaRaid, 800);
+    return;
+  }
+
+  setTimeout(() => {
+    if (!raidState || raidState !== st) return;
+    const alvo = st.mons[st.idx];
+    if (!alvo || alvo.hp <= 0) { st.busy = false; return; }
+    const tipoBoss = ESPECIES[st.boss.espec].tipo;
+    const mvW = movesDo(tipoBoss)[Math.floor(Math.random() * 4)];
+    const mulW = eff2(tipoBoss, ESPECIES[alvo.ref.espec].tipo);
+    const critW = Math.random() < 0.0625;
+    const dmgW = Math.max(6, Math.round((20 + st.boss.nivel * 0.1 + alvo.ref.cp / 25) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
+    alvo.hp = Math.max(0, alvo.hp - dmgW);
+    renderRaidTime();
+    sfx('hit');
+    log(`${nomeExibicao(st.boss)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
+    if (alvo.hp <= 0) {
+      cry(alvo.ref, 0.4);
+      const proximo = st.mons.findIndex(m => m.hp > 0);
+      if (proximo < 0) {
+        setTimeout(derrotaRaid, 700);
+        return;
+      }
+      setTimeout(() => {
+        if (!raidState || raidState !== st) return;
+        st.idx = proximo;
+        montarMovesRaid();
+        renderRaidTime();
+        log(`${nomeExibicao(alvo.ref)} desmaiou! ${nomeExibicao(st.mons[proximo].ref)} entrou na batalha!`);
+        cry(st.mons[proximo].ref, 0.5);
+        st.busy = false;
+      }, 800);
+      return;
+    }
+    st.busy = false;
+  }, 1000);
+}
+
+function vitoriaRaid() {
+  if (!raidState) return;
+  const st = raidState;
+  raidState = null;
+  document.getElementById('b-log').textContent = `🏆 ${nomeExibicao(st.boss)} foi derrotado!`;
+  sfx('vitoria');
+  cry(st.boss, 0.7);
+  removerSelvagem(st.boss);
+  if (raidAtual === st.boss) raidAtual = null;
+  esconderBannerRaid();
+  agendarProximaRaid();
+  capturaAtual = null;
+  setTimeout(() => {
+    document.getElementById('tela-batalha').classList.add('oculto');
+    document.getElementById('raid-time').classList.add('oculto');
+    document.getElementById('b-voce').classList.remove('oculto');
+    document.getElementById('b-capturar').classList.remove('oculto');
+    document.getElementById('b-fugir').textContent = '🏃 Fugir';
+    document.getElementById('b-arena').classList.remove('raid');
+    document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+    premiarRaid(st.boss);
+  }, 1500);
+}
+
+function premiarRaid(boss) {
+  const e = ESPECIES[boss.espec];
+  const nivelSorteado = 1 + Math.floor(Math.random() * 100);
+  const cp = Math.round(12 + nivelSorteado * (4 + Math.random() * 4) + (e.hp || 100) * 0.35);
+  const hpMax = Math.max(100, Math.round((e.hp || 100) * 2));
+  const premio = {
+    espec: boss.espec, pokeId: e.id, cp, nivel: nivelSorteado,
+    shiny: Math.random() < 0.03, mega: false, tier: boss.tier,
+    raidRecompensa: true, hp: hpMax, hpMax,
+  };
+  abrirCaptura(premio);
+  document.getElementById('captura-msg').textContent = `🏆 Recompensa da raid! Nível sorteado: ${nivelSorteado}.`;
+  toast(`🏆 Lendário derrotado! Capture-o no nível ${nivelSorteado}!`);
+}
+
+function derrotaRaid() {
+  if (!raidState) return;
+  const st = raidState;
+  raidState = null;
+  document.getElementById('b-log').textContent = '💀 Sua equipe foi derrotada... A raid fugiu.';
+  sfx('falha');
+  setTimeout(() => {
+    removerSelvagem(st.boss);
+    if (raidAtual === st.boss) raidAtual = null;
+    esconderBannerRaid();
+    agendarProximaRaid();
+    document.getElementById('tela-batalha').classList.add('oculto');
+    document.getElementById('raid-time').classList.add('oculto');
+    document.getElementById('b-voce').classList.remove('oculto');
+    document.getElementById('b-capturar').classList.remove('oculto');
+    document.getElementById('b-fugir').textContent = '🏃 Fugir';
+    document.getElementById('b-arena').classList.remove('raid');
+    document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+    capturaAtual = null;
+  }, 1800);
+}
+
+function sairRaid() {
+  raidState = null;
+  capturaAtual = null;
+  document.getElementById('tela-batalha').classList.add('oculto');
+  document.getElementById('raid-time').classList.add('oculto');
+  document.getElementById('b-voce').classList.remove('oculto');
+  document.getElementById('b-capturar').classList.remove('oculto');
+  document.getElementById('b-fugir').textContent = '🏃 Fugir';
+  document.getElementById('b-arena').classList.remove('raid');
+  document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+  if (raidAtual) {
+    raidExpiraEm = Date.now() + 120000;
+    const alerta = document.getElementById('raid-alerta');
+    if (alerta) alerta.classList.remove('oculto');
+    raidSegAnterior = -1;
+    atualizarBannerRaid();
+  }
+}
+
+function fecharBatalha() {
+  if (raidState) { sairRaid(); return; }
+  document.getElementById('tela-batalha').classList.add('oculto');
+}
+
+document.getElementById('raid-entrar').onclick = () => {
+  if (raidAtual) entrarRaid(raidAtual);
+  else toast('Nenhuma raid ativa no momento.');
+};
 
 // ===== INPUT 3D =====
 const teclas = {};
 const MODAIS = ['tela-batalha', 'tela-inventario', 'tela-loja', 'tela-pokedex', 'tela-admin', 'tela-pvp', 'tela-troca'];
 
 function fecharModais() {
+  const batalha = document.getElementById('tela-batalha');
+  if (batalha && !batalha.classList.contains('oculto')) fecharBatalha();
   for (const id of MODAIS) {
     const el = document.getElementById(id);
     if (el) el.classList.add('oculto');
@@ -1028,8 +1469,11 @@ renderer.domElement.addEventListener('pointerup', e => {
     const sx = (v.x + 1) / 2 * r.width;
     const sy = (-v.y + 1) / 2 * r.height;
     const esp = ESPECIES[s.espec];
-    const alcance = esp && esp.lendario ? 60 : 46;
-    if (v.z < 1 && Math.hypot(sx - px, sy - py) < alcance) { abrirCaptura(s); return; }
+    const alcance = esp && (esp.lendario || esp.mitico) ? 60 : 46;
+    if (v.z < 1 && Math.hypot(sx - px, sy - py) < alcance) {
+      if (s.raid) entrarRaid(s); else abrirCaptura(s);
+      return;
+    }
   }
   const plano = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const ponto = new THREE.Vector3();
@@ -1097,7 +1541,19 @@ function update() {
       const pulso = 1 + Math.sin(s.bob * 1.4) * 0.05;
       anel.scale.set(pulso, pulso, 1);
       anel.material.opacity = 0.32 + (Math.sin(s.bob * 1.4) + 1) * 0.11;
+      if (s.raid) {
+        anel.rotation.z += 0.012;
+        anel.material.opacity = 0.55 + (Math.sin(s.bob * 1.4) + 1) * 0.14;
+      }
     }
+  }
+
+  if (raidAtual && !raidState) {
+    atualizarBannerRaid();
+    if (Date.now() >= raidExpiraEm) expirarRaid();
+  }
+  if (!raidAtual && !raidState && !capturaAtual && Date.now() >= raidProximaEm && !uiAberta()) {
+    iniciarRaid();
   }
 
   for (const n of nuvens) {
@@ -1158,13 +1614,25 @@ function loop() {
 function abrirCaptura(s) {
   capturaAtual = s;
   const e = ESPECIES[s.espec];
+  const r = raridadeDe(e);
   const lvl = s.nivel || Math.max(1, Math.round(s.cp / 15));
   document.getElementById('captura-nome').textContent = nomeExibicao(s);
   document.getElementById('captura-cp').textContent = 'CP ' + s.cp;
   document.getElementById('captura-tipo').textContent = e.tipo;
   document.getElementById('captura-nivel').textContent = 'Nv ' + lvl;
   document.getElementById('captura-tipo').style.background = corTipo(e.tipo);
+  const rar = document.getElementById('captura-raridade');
+  if (rar) {
+    rar.textContent = r.nome;
+    rar.style.color = r.cor;
+    rar.style.borderColor = r.cor;
+    rar.style.background = corRgba(r.cor, 0.16);
+  }
   document.getElementById('captura-msg').textContent = '';
+  document.getElementById('btn-batalha').classList.toggle('oculto', !!s.raidRecompensa);
+  if (s.raidRecompensa) {
+    document.getElementById('captura-msg').textContent = `🏆 Recompensa da raid! Nível sorteado: ${lvl}.`;
+  }
 
   // Marca como "visto" na Pokédex
   const d = dex[s.espec] = dex[s.espec] || { c: 0, s: false, v: 0 };
@@ -1352,7 +1820,7 @@ function resolverLancamento(bonusAnel = 0.5, bonusRating = 0) {
   }
   sfx('bola');
   capturaTremor = 1;
-  let chance = capturaComChance(0.3 + bonusAnel * 0.4 + bonusRating) * MULT_BOLA[bola];
+  let chance = capturaComChance(0.22 + bonusAnel * 0.38 + bonusRating) * MULT_BOLA[bola];
   if (bola === 'master') chance = 1;
   if (Math.random() < chance) {
     efeitosCaptura();
@@ -1392,7 +1860,7 @@ function chanceExibida() {
   const sel = document.getElementById('bola-select');
   const bola = (sel && sel.value) || 'poke';
   if (bola === 'master') return 1;
-  let c = capturaComChance(0.55) * (MULT_BOLA[bola] || 1);
+  let c = capturaComChance(0.52) * (MULT_BOLA[bola] || 1);
   return Math.max(0.02, Math.min(1, c));
 }
 function atualizarChance() {
@@ -1405,11 +1873,17 @@ function atualizarChance() {
 }
 
 function capturaComChance(chanceBase) {
+  if (!capturaAtual) return 0;
+  const e = ESPECIES[capturaAtual.espec];
+  const rar = raridadeDe(e);
   const hpFrac = capturaAtual.hp / capturaAtual.hpMax;
-  const cpPenalty = Math.min(0.35, capturaAtual.cp / 900);
-  let chance = chanceBase + (1 - hpFrac) * 0.45 - cpPenalty;
-  if (capturaAtual.shiny) chance -= 0.15;
-  return Math.max(0.05, Math.min(0.95, chance));
+  const cpPenalty = capturaAtual.raidRecompensa
+    ? Math.min(0.12, capturaAtual.cp / 2500)
+    : Math.min(0.45, capturaAtual.cp / 800);
+  let chance = chanceBase + (1 - hpFrac) * 0.42 - cpPenalty - rar.captura;
+  if (capturaAtual.shiny) chance -= 0.12;
+  if (capturaAtual.raidRecompensa) chance += 0.32;
+  return Math.max(0.03, Math.min(0.92, chance));
 }
 
 function efeitosCaptura() {
@@ -1440,6 +1914,11 @@ function concluirCaptura() {
   moedas += 25;
   const raiz = raizDe(s.espec);
   doces[raiz] = (doces[raiz] || 0) + (s.shiny ? 6 : 3);
+  if (s.raidRecompensa) {
+    moedas += 250;
+    doces[raiz] += 10;
+    toast(`🏆 Recompensa de raid! +250 🪙 e +10 🍬 de ${ESPECIES[raiz].nome}!`);
+  }
   if (Math.random() < 0.08) { pedras++; toast('💎 Achou uma Mega Pedra!'); }
   const d = dex[s.espec] = dex[s.espec] || { c: 0, s: false, v: 0 };
   d.c++;
@@ -1449,6 +1928,7 @@ function concluirCaptura() {
   removerSelvagem(s);
   capturaAberta = false;
   resetBola();
+  document.getElementById('btn-batalha').classList.remove('oculto');
   document.getElementById('tela-captura').classList.add('oculto');
   document.getElementById('tela-batalha').classList.add('oculto');
   salvar();
@@ -1474,16 +1954,31 @@ let bVoce = null, bBusy = false;
 
 document.getElementById('btn-batalha').onclick = () => {
   if (!capturaAtual) return;
+  if (capturaAtual.raidRecompensa) return toast('🏆 Este lendário é a recompensa da raid. Capture-o!');
   const time = inventario.filter(p => !p.pc);
   if (!time.length) return toast('Você não tem Pokémon no time!');
   const sel = document.getElementById('b-select');
   sel.innerHTML = time.map((p, i) => `<option value="${inventario.indexOf(p)}">${nomeExibicao(p)} CP ${p.cp} Nv ${p.nivel}</option>`).join('');
   novaBatalhaJogador();
+  const s = capturaAtual;
+  const r = raridadeDe(ESPECIES[s.espec]);
+  document.getElementById('b-titulo').textContent = '⚔️ Batalha selvagem';
+  document.getElementById('b-arena').classList.remove('raid');
+  document.getElementById('b-voce').classList.remove('oculto');
+  document.getElementById('raid-time').classList.add('oculto');
+  document.getElementById('b-capturar').classList.remove('oculto');
+  document.getElementById('b-fugir').textContent = '🏃 Fugir';
   document.getElementById('tela-batalha').classList.remove('oculto');
   document.getElementById('captura-msg').textContent = '';
-  const s = capturaAtual;
   document.getElementById('b-wild-img').src = spriteUrl(s);
   document.getElementById('b-wild-nome').textContent = nomeExibicao(s) + ' CP ' + s.cp;
+  const tag = document.getElementById('b-wild-raridade');
+  if (tag) {
+    tag.textContent = r.nome;
+    tag.style.color = r.cor;
+    tag.style.borderColor = r.cor;
+    tag.style.background = corRgba(r.cor, 0.16);
+  }
   document.getElementById('b-wild-hp').style.width = (s.hp / s.hpMax * 100) + '%';
   log('Um ' + nomeExibicao(s) + ' selvagem apareceu!');
   sfx('batalha');
@@ -1606,6 +2101,7 @@ document.getElementById('b-capturar').onclick = () => {
 };
 
 document.getElementById('b-fugir').onclick = () => {
+  if (raidState) { sairRaid(); return; }
   bBusy = false;
   document.getElementById('tela-batalha').classList.add('oculto');
 };
@@ -1654,6 +2150,7 @@ function cartaHtml(p) {
   const i = inventario.indexOf(p);
   const e = ESPECIES[p.espec];
   const raiz = raizDe(p.espec);
+  const r = raridadeDe(e);
   const podeEvo = e.evo && !p.mega;
   const podeMega = e.mega && !p.mega;
   const cor = corTipo(e.tipo);
@@ -1662,11 +2159,12 @@ function cartaHtml(p) {
        <button onclick="virarDoce(${i})" title="Transferir por 3 doces">🍬+3</button>`
     : `<button onclick="moverPC(${i})" title="Guardar no PC">🖥️ PC</button>
        <button onclick="virarDoce(${i})" title="Transferir por 3 doces">🍬+3</button>`;
-  return `<div class="card ${p.shiny ? 'shiny' : ''}" style="--tc:${cor}">
+  return `<div class="card ${p.shiny ? 'shiny' : ''}" style="--tc:${cor};--rc:${r.cor}">
     <img src="${spriteUrl(p)}" alt="${e.nome}" loading="lazy">
     <div class="card-info">
       <b>${nomeExibicao(p)}</b>
       <span class="tipo">${e.tipo}</span>
+      <span class="raridade-mini">${r.nome}</span>
       <small class="cp">CP ${p.cp} · Nv ${p.nivel}</small>
       <small>🍬 ${doces[raiz] || 0} doces</small>
     </div>
@@ -1885,19 +2383,23 @@ function renderDex() {
       const d = dex[i];
       if (!f) return true;
       return e.nome.toLowerCase().includes(f)
+        || nomeEspecie(e).toLowerCase().includes(f)
         || String(e.id).includes(f)
         || (e.tipo || '').toLowerCase().includes(f)
+        || raridadeDe(e).nome.toLowerCase().includes(f)
         || (f.includes('shiny') && d && d.s);
     })
     .map(({ e, i }) => {
       const d = dex[i];
       const num = '#' + String(e.id).padStart(4, '0');
+      const r = raridadeDe(e);
+      const nomeE = nomeEspecie(e);
       if (!d) return `<div class="dex-item bloqueado" title="Ainda não visto"><div class="dex-silhueta">❓</div><span class="dex-num">${num}</span><small>???</small></div>`;
-      if (!d.c) return `<div class="dex-item visto" title="Visto — ainda não capturado"><img src="${SPR(e.id)}" loading="lazy" alt="${e.nome}"><span class="dex-num">${num}</span><b>${e.nome}</b><small>Visto</small></div>`;
-      return `<div class="dex-item capturado ${d.s ? 'shiny-dex' : ''}" title="${e.nome}">
-        <img src="${SPR(e.id)}" loading="lazy" alt="${e.nome}">
-        <span class="dex-num">${num}</span><b>${e.nome}</b>
-        <small>x${d.c}${d.s ? ' ✨' : ''}</small>
+      if (!d.c) return `<div class="dex-item visto" title="Visto — ainda não capturado · ${r.nome}"><img src="${SPR(e.id)}" loading="lazy" alt="${nomeE}"><span class="dex-num">${num}</span><b>${nomeE}</b><small>Visto · <span style="color:${r.cor}">${r.nome}</span></small></div>`;
+      return `<div class="dex-item capturado ${d.s ? 'shiny-dex' : ''}" title="${nomeE} · ${r.nome}">
+        <img src="${SPR(e.id)}" loading="lazy" alt="${nomeE}">
+        <span class="dex-num">${num}</span><b>${nomeE}</b>
+        <small>x${d.c}${d.s ? ' ✨' : ''} · <span style="color:${r.cor}">${r.nome}</span></small>
       </div>`;
     }).join('');
   document.getElementById('dex-lista').innerHTML = html || '<p style="grid-column:1/-1;color:var(--muted);padding:30px;text-align:center">Nenhum Pokémon encontrado.</p>';
@@ -1912,6 +2414,7 @@ document.getElementById('btn-fechar-dex').onclick = () => document.getElementByI
 
 document.getElementById('btn-jogar').onclick = () => {
   document.getElementById('tela-menu').classList.add('oculto');
+  raidProximaEm = Date.now() + (45 + Math.random() * 45) * 1000;
   toast('🌿 Boa aventura! Clique em um Pokémon para capturar.');
 };
 function entrarNaConta() {
@@ -1923,6 +2426,7 @@ function entrarNaConta() {
   usuario = chave;
   localStorage.setItem('pw_user', chave);
   carregarConta();
+  agendarProximaRaid(true);
   document.getElementById('tela-login').classList.add('oculto');
   document.getElementById('tela-menu').classList.remove('oculto');
   if (groundMat.map) groundMat.map.dispose();
@@ -1951,6 +2455,7 @@ function criarConta() {
   bolas = { great: 0, ultra: 0, master: 0 };
   incense = false;
   biomeAtual = 'planicie';
+  raidAtual = null; raidState = null; esconderBannerRaid(); agendarProximaRaid(true);
   for (const s of [...selvagens]) removerSelvagem(s);
   if (groundMat.map) groundMat.map.dispose();
   groundMat.map = makeGroundTex();

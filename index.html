@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b1020">
 <title>Pokémon Web GO</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50h92' stroke='%23222' stroke-width='8'/><circle cx='50' cy='50' r='14' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50a46 46 0 0 1 92 0z' fill='%23ef4444'/></svg>">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div class="bg-orb orb-1"></div>
@@ -40,6 +40,15 @@
     <div class="mapa-hud">
       <div id="biome-pill"><span id="biome-nome">🌿 Planície</span></div>
       <div class="mapa-hint">🖱️ Arraste para girar · 🖲️ Role para zoom</div>
+    </div>
+    <div id="raid-alerta" class="oculto">
+      <div class="raid-alerta-topo">
+        <span class="raid-raio">⚡</span>
+        <b>RAID LENDÁRIA</b>
+        <span id="raid-timer">2:00</span>
+      </div>
+      <div id="raid-nome">Lendário · Nv 150</div>
+      <button id="raid-entrar">⚔️ Entrar na raid</button>
     </div>
   </div>
 
@@ -97,6 +106,7 @@
     <h2 id="captura-nome"></h2>
     <div class="captura-chips">
       <span class="tag" id="captura-tipo"></span>
+      <span class="tag raridade" id="captura-raridade">Comum</span>
       <span class="tag" id="captura-nivel"></span>
       <span class="tag destaque" id="captura-cp"></span>
     </div>
@@ -129,17 +139,19 @@
     <span>2️⃣ Solte com o <b>anel pequeno</b> para mais chance</span>
     <span>3️⃣ Use ⚔️ Atacar para enfraquecer</span>
     <span>4️⃣ Bolas melhores capturam mais</span>
+    <span>5️⃣ Raridade alta = mais raro e difícil</span>
   </div>
 </section>
 
 <!-- BATALHA -->
 <section id="tela-batalha" class="modal painel oculto">
-  <button class="btn-x" onclick="document.getElementById('tela-batalha').classList.add('oculto')">✕</button>
-  <h2>⚔️ Batalha selvagem</h2>
+  <button class="btn-x" onclick="fecharBatalha()">✕</button>
+  <h2 id="b-titulo">⚔️ Batalha selvagem</h2>
   <div id="b-arena">
     <div id="b-wild" class="lutador">
       <img id="b-wild-img" alt="selvagem">
       <b id="b-wild-nome"></b>
+      <span id="b-wild-raridade" class="raridade-tag">Comum</span>
       <div class="hpbar"><div id="b-wild-hp"></div></div>
     </div>
     <span class="vs">VS</span>
@@ -149,6 +161,7 @@
       <div class="hpbar"><div id="b-voce-hp"></div></div>
     </div>
   </div>
+  <div id="raid-time" class="oculto"></div>
   <div id="b-moves"></div>
   <p id="b-log"></p>
   <div class="modal-acoes">
@@ -346,6 +359,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<script src="game.js?v=7"></script>
+<script src="game.js?v=8"></script>
 </body>
 </html>
