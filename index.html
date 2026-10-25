@@ -3,197 +3,349 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1020">
 <title>Pokémon Web GO</title>
-<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50h92' stroke='%23222' stroke-width='8'/><circle cx='50' cy='50' r='14' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50a46 46 0 0 1 92 0z' fill='%23ef4444'/></svg>">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
-<header>
-  <h1>🎮 Pokémon Web GO</h1>
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-ball" aria-hidden="true"></span>
+    <div class="brand-text">
+      <h1>Pokémon Web GO</h1>
+      <small>Aventura 3D · Capture, evolua, batalhe</small>
+    </div>
+  </div>
+
   <div id="hud">
-    <span id="hud-nivel">⭐ Nv 1</span>
-    <div id="xp-wrap"><div id="xp-bar"></div></div>
-    <span id="hud-moedas">🪙 0</span>
-    <span id="hud-capturados">📦 0</span>
-    <span id="hud-pedras">💎 0</span>
-    <button id="btn-viajar">✈️ Viajar</button>
-    <button id="btn-loja">🛒 Loja</button>
-    <button id="btn-pokedex">📖 Pokédex</button>
-    <button id="btn-inventario">Inventário</button>
-    <button id="btn-pvp">⚔️ PvP</button>
-    <button id="btn-troca">🔁 Trocar</button>
-    <button id="btn-sair">👤 Sair</button>
-    <button id="btn-som">🔊</button>
+    <div class="chip chip-xp">
+      <span id="hud-nivel">⭐ Nv 1</span>
+      <div id="xp-wrap"><div id="xp-bar"></div></div>
+    </div>
+    <span class="chip" id="hud-moedas">🪙 0</span>
+    <span class="chip" id="hud-capturados">📦 0</span>
+    <span class="chip" id="hud-pedras">💎 0</span>
+    <button id="btn-som" class="icon-btn" title="Ligar/desligar som">🔊</button>
+    <button id="btn-sair" class="icon-btn" title="Sair da conta">🚪</button>
   </div>
 </header>
 
 <main>
-  <div id="cena"></div>
+  <div id="cena-wrap">
+    <div id="cena"></div>
+    <div class="mapa-hud">
+      <div id="biome-pill"><span id="biome-nome">🌿 Planície</span></div>
+      <div class="mapa-hint">🖱️ Arraste para girar · 🖲️ Role para zoom</div>
+    </div>
+  </div>
 
-  <div id="dica">Use <b>setas/WASD</b> ou <b>clique</b> no mapa para andar. Clique em um Pokémon para capturar! Área: <b id="biome-nome"></b></div>
+  <div id="dica">
+    Use <b>setas / WASD</b> ou <b>clique no mapa</b> para andar. Clique em um Pokémon para capturar! Chegue perto dos <b>PokéStops azuis</b> para ganhar itens.
+  </div>
 
-  <section id="tela-login">
-    <h1>🎮 Pokémon Web GO</h1>
-    <input id="login-user" placeholder="Usuário">
-    <input id="login-pass" type="password" placeholder="Senha">
+  <nav id="barra-acoes">
+    <button id="btn-viajar" class="acao acao-viajar"><span>✈️</span>Viajar</button>
+    <button id="btn-loja" class="acao acao-loja"><span>🛒</span>Loja</button>
+    <button id="btn-pokedex" class="acao acao-dex"><span>📖</span>Pokédex</button>
+    <button id="btn-inventario" class="acao acao-inv"><span>🎒</span>Inventário</button>
+    <button id="btn-pvp" class="acao acao-pvp"><span>⚔️</span>PvP</button>
+    <button id="btn-troca" class="acao acao-troca"><span>🔁</span>Trocar</button>
+  </nav>
+</main>
+
+<!-- LOGIN -->
+<section id="tela-login" class="tela-cheia">
+  <div class="login-logo pokeball-grande" aria-hidden="true"></div>
+  <h1>Pokémon Web GO</h1>
+  <p class="subtitulo">Entre para continuar sua aventura</p>
+  <div class="login-form">
+    <input id="login-user" placeholder="Usuário" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="Senha" autocomplete="current-password">
     <p id="login-erro"></p>
-    <button id="btn-entrar">Entrar</button>
-    <button id="btn-criar" class="secundario">Criar conta</button>
+    <button id="btn-entrar" class="btn-principal">Entrar</button>
+    <button id="btn-criar" class="btn-secundario">Criar conta</button>
+  </div>
+  <small class="rodape-aviso">Seu progresso fica salvo nesta conta e neste navegador.</small>
+</section>
 
-  </section>
+<!-- MENU -->
+<section id="tela-menu" class="tela-cheia oculto">
+  <div class="login-logo pokeball-grande" aria-hidden="true"></div>
+  <h1>Pokémon Web GO</h1>
+  <p class="subtitulo">Explore, capture, evolua e mega evolua!</p>
+  <div class="login-form">
+    <button id="btn-jogar" class="btn-principal">▶️ Jogar</button>
+    <button id="btn-reset" class="btn-secundario">🗑️ Resetar progresso</button>
+  </div>
+  <small class="rodape-aviso">Setas/WASD ou clique para andar · Clique em um Pokémon para capturar</small>
+</section>
 
-  <section id="tela-menu" class="oculto">
-    <h1>🎮 Pokémon Web GO</h1>
-    <p>Explore, capture, evolua e mega evolua!</p>
-    <button id="btn-jogar">▶️ Jogar</button>
-    <button id="btn-reset" class="secundario">🗑️ Resetar progresso</button>
-    <small>Setas/WASD ou clique para andar · Clique em um Pokémon para capturar</small>
-  </section>
+<!-- EVOLUÇÃO -->
+<section id="evo-modal" class="tela-cheia escura oculto">
+  <h2>✨ Evolução! ✨</h2>
+  <div class="evo-emojis"><img id="evo-antes" alt="antes"> <span>→</span> <img id="evo-depois" alt="depois"></div>
+  <p id="evo-nome"></p>
+</section>
 
-  <section id="evo-modal" class="oculto">
-    <h2>✨ Evolução! ✨</h2>
-    <div class="evo-emojis"><img id="evo-antes" alt="antes"> → <img id="evo-depois" alt="depois"></div>
-    <p id="evo-nome"></p>
-  </section>
-
-  <section id="tela-captura" class="oculto">
+<!-- CAPTURA -->
+<section id="tela-captura" class="oculto">
+  <div class="captura-topo">
     <h2 id="captura-nome"></h2>
-    <p id="captura-cp"></p>
-    <div id="captura-arena">
-      <div id="pokemon-spot">
-        <img id="captura-img" alt="pokemon">
-        <div id="ring"></div>
-      </div>
-      <div id="bola-captura" title="Arraste até o Pokémon"></div>
+    <div class="captura-chips">
+      <span class="tag" id="captura-tipo"></span>
+      <span class="tag" id="captura-nivel"></span>
+      <span class="tag destaque" id="captura-cp"></span>
     </div>
-    <div id="captura-hp"><div id="captura-hp-bar"></div></div>
-    <select id="bola-select"></select>
-    <div class="captura-btns">
-      <button id="btn-atacar">⚔️ Atacar</button>
-      <button id="btn-batalha">🥊 Batalha!</button>
-      <button id="btn-fugir">🏃 Fugir</button>
-    </div>
-    <p id="captura-msg"></p>
-    <div id="tutorial-captura">
-      <b>📖 Como capturar:</b><br>
-      1️⃣ Arraste a <b>Pokébola</b> até o Pokémon<br>
-      2️⃣ Solte quando o <b>anel estiver pequeno</b> (melhor chance!)<br>
-      3️⃣ Use ⚔️ Atacar para enfraquecer<br>
-      4️⃣ Bolas melhores (🟡🔵🟣) capturam mais
-    </div>
-  </section>
+  </div>
 
-  <section id="tela-batalha" class="oculto">
-    <h2>⚔️ Batalha</h2>
-    <div id="b-wild">
-      <img id="b-wild-img" alt="wild">
+  <div id="captura-arena">
+    <div id="pokemon-spot">
+      <img id="captura-img" alt="pokemon">
+      <div id="ring"></div>
+    </div>
+    <div id="bola-captura" title="Arraste até o Pokémon"></div>
+  </div>
+
+  <div class="captura-status">
+    <div id="captura-hp"><div id="captura-hp-bar"></div></div>
+    <div id="captura-chance">Chance de captura: <b>--</b></div>
+  </div>
+
+  <select id="bola-select" title="Escolha a bola"></select>
+  <div class="captura-btns">
+    <button id="btn-atacar">⚔️ Atacar</button>
+    <button id="btn-batalha">🥊 Batalha!</button>
+    <button id="btn-fugir" class="btn-perigo">🏃 Fugir</button>
+  </div>
+  <p id="captura-msg"></p>
+
+  <div id="tutorial-captura">
+    <b>📖 Como capturar</b>
+    <span>1️⃣ Arraste a <b>Pokébola</b> até o Pokémon</span>
+    <span>2️⃣ Solte com o <b>anel pequeno</b> para mais chance</span>
+    <span>3️⃣ Use ⚔️ Atacar para enfraquecer</span>
+    <span>4️⃣ Bolas melhores capturam mais</span>
+  </div>
+</section>
+
+<!-- BATALHA -->
+<section id="tela-batalha" class="modal painel oculto">
+  <button class="btn-x" onclick="document.getElementById('tela-batalha').classList.add('oculto')">✕</button>
+  <h2>⚔️ Batalha selvagem</h2>
+  <div id="b-arena">
+    <div id="b-wild" class="lutador">
+      <img id="b-wild-img" alt="selvagem">
       <b id="b-wild-nome"></b>
       <div class="hpbar"><div id="b-wild-hp"></div></div>
     </div>
-    <div id="b-voce">
-      <img id="b-voce-img" alt="voce">
+    <span class="vs">VS</span>
+    <div id="b-voce" class="lutador">
+      <img id="b-voce-img" alt="você">
       <select id="b-select"></select>
       <div class="hpbar"><div id="b-voce-hp"></div></div>
     </div>
-    <div id="b-moves"></div>
-    <p id="b-log"></p>
-    <div>
-      <button id="b-capturar">🔴 Capturar</button>
-      <button id="b-fugir">🏃 Fugir</button>
-    </div>
-  </section>
+  </div>
+  <div id="b-moves"></div>
+  <p id="b-log"></p>
+  <div class="modal-acoes">
+    <button id="b-capturar">🔴 Capturar</button>
+    <button id="b-fugir" class="btn-secundario-escuro">🏃 Fugir</button>
+  </div>
+</section>
 
-  <section id="tela-inventario" class="oculto">
-    <h2>⭐ Pokémon</h2>
-    <div class="tabs">
-      <button id="tab-time" class="ativo">🎮 Time</button>
-      <button id="tab-pc">🖥️ PC</button>
-      <button id="tab-itens">🎒 Items</button>
-    </div>
-    <input id="busca" type="search" placeholder="🔍 Pesquisar Pokémon...">
-    <div id="lista-time"></div>
-    <div id="lista-pc" class="oculto"></div>
-    <div id="lista-itens" class="oculto"></div>
-    <button id="btn-fechar-inv">Fechar</button>
-  </section>
+<!-- INVENTÁRIO -->
+<section id="tela-inventario" class="modal painel oculto">
+  <button id="btn-fechar-inv" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
+    <h2>🎒 Inventário</h2>
+    <p id="inv-contagem" class="modal-sub"></p>
+  </div>
 
-  <section id="tela-loja" class="oculto modal-extra">
+  <div class="tabs">
+    <button id="tab-time" class="ativo">🎮 Time <b id="cont-time">0</b></button>
+    <button id="tab-pc">🖥️ PC <b id="cont-pc">0</b></button>
+    <button id="tab-itens">🎒 Itens</button>
+  </div>
+
+  <div class="inv-top" id="inv-busca-area">
+    <input id="busca" type="search" placeholder="🔍 Pesquisar por nome, tipo ou nº...">
+    <select id="ordenar" title="Ordenar">
+      <option value="recentes">🕒 Mais recentes</option>
+      <option value="cp">💪 Maior CP</option>
+      <option value="nivel">⭐ Maior nível</option>
+      <option value="nome">🔤 Nome (A-Z)</option>
+      <option value="dex">🔢 Nº da Pokédex</option>
+    </select>
+  </div>
+
+  <div id="lista-time"></div>
+  <div id="lista-pc" class="oculto"></div>
+  <div id="lista-itens" class="oculto"></div>
+</section>
+
+<!-- LOJA -->
+<section id="tela-loja" class="modal painel modal-extra oculto">
+  <button id="btn-fechar-loja" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
     <h2>🛒 Loja</h2>
-    <div id="loja-lista"></div>
-    <button id="btn-fechar-loja">Fechar</button>
-  </section>
+    <p id="loja-moedas" class="modal-sub"></p>
+  </div>
+  <div id="loja-lista"></div>
+</section>
 
-  <section id="tela-admin" class="oculto modal-extra">
-    <h2>⚙️ Painel Admin — 🪔 Incenso de Aventura</h2>
+<!-- POKÉDEX -->
+<section id="tela-pokedex" class="modal painel modal-extra oculto">
+  <button id="btn-fechar-dex" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
+    <h2>📖 Pokédex</h2>
+    <p id="dex-progresso" class="modal-sub"></p>
+  </div>
+  <div class="dex-progresso-wrap"><div id="dex-bar"></div></div>
+  <input id="dex-busca" type="search" placeholder="🔍 Pesquisar por nome ou número...">
+  <div id="dex-lista"></div>
+</section>
+
+<!-- ADMIN -->
+<section id="tela-admin" class="modal painel modal-extra oculto">
+  <button onclick="fecharAdmin()" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
+    <h2>🪔 Incenso de Aventura</h2>
+    <p class="modal-sub">Painel administrativo</p>
+  </div>
+
+  <fieldset class="admin-grupo">
+    <legend>💰 Recursos</legend>
     <div class="admin-grid">
       <label>🪙 Moedas <input id="admin-moedas" type="number" min="1" placeholder="qtd"></label>
       <button onclick="adminAdd('moedas')">Adicionar</button>
       <label>⭐ XP <input id="admin-xp" type="number" min="1" placeholder="qtd"></label>
       <button onclick="adminAdd('xp')">Adicionar</button>
+      <label>💎 Mega Pedras <input id="admin-pedras" type="number" min="1" placeholder="qtd"></label>
+      <button onclick="adminAdd('pedras')">Adicionar</button>
+    </div>
+  </fieldset>
+
+  <fieldset class="admin-grupo">
+    <legend>🔴 Bolas</legend>
+    <div class="admin-grid">
       <label>🔵 Great Balls <input id="admin-great" type="number" min="1" placeholder="qtd"></label>
       <button onclick="adminAdd('great')">Adicionar</button>
       <label>🟡 Ultra Balls <input id="admin-ultra" type="number" min="1" placeholder="qtd"></label>
       <button onclick="adminAdd('ultra')">Adicionar</button>
       <label>🟣 Master Balls <input id="admin-master" type="number" min="1" placeholder="qtd"></label>
       <button onclick="adminAdd('master')">Adicionar</button>
-      <label>💎 Mega Pedras <input id="admin-pedras" type="number" min="1" placeholder="qtd"></label>
-      <button onclick="adminAdd('pedras')">Adicionar</button>
-      <label>🎁 Pokémon<br><input id="admin-poke-busca" type="search" placeholder="🔍 Filtrar por nome..." style="width:100%"><br><select id="admin-poke" style="width:100%"></select><br>Nível <input id="admin-level" type="number" min="1" value="10"> <label><input id="admin-shiny" type="checkbox"> ✨ Shiny</label></label>
-      <button onclick="darPokemon()">Dar</button>
     </div>
-    <button onclick="darIncenso()">🪔 Dar Incenso a outro usuário</button>
-    <button onclick="fecharAdmin()">Fechar</button>
-  </section>
+  </fieldset>
 
-  <section id="tela-pokedex" class="oculto modal-extra">
-    <h2>📖 Pokédex</h2>
-    <div id="dex-lista"></div>
-    <button id="btn-fechar-dex">Fechar</button>
-  </section>
+  <fieldset class="admin-grupo">
+    <legend>🎁 Dar Pokémon</legend>
+    <input id="admin-poke-busca" type="search" placeholder="🔍 Filtrar por nome ou número..." class="campo-largo">
+    <select id="admin-poke" class="campo-largo" size="5"></select>
+    <div class="admin-grid">
+      <label>Nível <input id="admin-level" type="number" min="1" value="10"></label>
+      <label class="check"><input id="admin-shiny" type="checkbox"> ✨ Shiny</label>
+    </div>
+    <button onclick="darPokemon()" class="btn-principal">🎁 Dar Pokémon</button>
+  </fieldset>
 
-  <div id="toast"></div>
-</main>
+  <button onclick="darIncenso()" class="btn-secundario-escuro">🪔 Dar Incenso a outro usuário</button>
+</section>
+
+<!-- PVP -->
+<section id="tela-pvp" class="modal painel modal-extra oculto">
+  <button id="pvp-fechar" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
+    <h2>⚔️ Batalha PvP</h2>
+    <p class="modal-sub">Desafie um amigo usando um código de sala</p>
+  </div>
+
+  <div id="pvp-setup" class="pvp-setup">
+    <div class="pvp-colunas">
+      <div class="pvp-bloco">
+        <b>Criar sala</b>
+        <small>Compartilhe o código com seu amigo</small>
+        <input id="pvp-code" placeholder="Código da sala">
+        <button id="pvp-criar">🏠 Criar sala</button>
+      </div>
+      <div class="pvp-bloco">
+        <b>Entrar</b>
+        <small>Use o código que seu amigo enviou</small>
+        <input id="pvp-code2" placeholder="Código do amigo">
+        <button id="pvp-entrar">🚪 Entrar</button>
+      </div>
+    </div>
+    <p id="pvp-status"></p>
+    <label class="pvp-escolha">Seu Pokémon:
+      <select id="pvp-escolha"></select>
+    </label>
+  </div>
+
+  <div id="pvp-battle" class="oculto">
+    <div class="pvp-arena">
+      <div class="pvp-lado">
+        <img id="pvp-eu-img" alt="você">
+        <b id="pvp-eu-nome"></b>
+        <div class="hpbar"><div id="pvp-eu-hp"></div></div>
+      </div>
+      <span class="vs">VS</span>
+      <div class="pvp-lado">
+        <img id="pvp-adv-img" alt="adversário">
+        <b id="pvp-adv-nome"></b>
+        <div class="hpbar"><div id="pvp-adv-hp"></div></div>
+      </div>
+    </div>
+    <div id="pvp-moves"></div>
+    <p id="pvp-log"></p>
+    <button id="pvp-sair" class="btn-secundario-escuro">Sair da batalha</button>
+  </div>
+</section>
+
+<!-- TROCA -->
+<section id="tela-troca" class="modal painel modal-extra oculto">
+  <button id="troca-fechar" class="btn-x" title="Fechar">✕</button>
+  <div class="modal-head">
+    <h2>🔁 Troca de Pokémon</h2>
+    <p class="modal-sub">Os dois precisam aceitar para a troca acontecer</p>
+  </div>
+
+  <div id="troca-setup" class="pvp-setup">
+    <div class="pvp-colunas">
+      <div class="pvp-bloco">
+        <b>Criar sala</b>
+        <small>Compartilhe o código com seu amigo</small>
+        <input id="troca-code" placeholder="Código da sala">
+        <button id="troca-criar">🏠 Criar sala</button>
+      </div>
+      <div class="pvp-bloco">
+        <b>Entrar</b>
+        <small>Use o código que seu amigo enviou</small>
+        <input id="troca-code2" placeholder="Código do amigo">
+        <button id="troca-entrar">🚪 Entrar</button>
+      </div>
+    </div>
+    <p id="troca-status"></p>
+    <label class="pvp-escolha">Seu Pokémon:
+      <select id="troca-escolha"></select>
+    </label>
+    <p id="troca-oferta" class="troca-oferta"></p>
+    <button id="troca-aceitar" class="btn-principal oculto">✅ Aceitar troca</button>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<div id="loading">
+  <div class="pokeball-spinner"></div>
+  <p id="loading-text">Carregando Pokémon...</p>
+  <small>Conectando à PokéAPI</small>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <section id="tela-pvp" class="oculto modal-extra">
-    <h2>⚔️ PvP</h2>
-    <div id="pvp-setup">
-      <p>Invente um código de sala e compartilhe, ou entre no código de um amigo.</p>
-      <input id="pvp-code" placeholder="Código da sala">
-      <button id="pvp-criar">Criar sala</button>
-      <button id="pvp-entrar">Entrar</button>
-      <p id="pvp-status"></p>
-      <label>Escolha seu Pokémon:
-        <select id="pvp-escolha"></select>
-      </label>
-    </div>
-    <div id="pvp-battle" class="oculto">
-      <div style="display:flex; gap:20px; justify-content:center; align-items:center;">
-        <div><img id="pvp-eu-img" width="90"><b id="pvp-eu-nome"></b><div class="hpbar"><div id="pvp-eu-hp"></div></div></div>
-        <b style="font-size:2rem">VS</b>
-        <div><img id="pvp-adv-img" width="90"><b id="pvp-adv-nome"></b><div class="hpbar"><div id="pvp-adv-hp"></div></div></div>
-      </div>
-      <div id="pvp-moves"></div>
-      <p id="pvp-log"></p>
-      <button id="pvp-sair">Sair da batalha</button>
-    </div>
-    <button id="pvp-fechar">Fechar</button>
-  </section>
-
-  <section id="tela-troca" class="oculto modal-extra">
-    <h2>🔁 Troca de Pokémon</h2>
-    <div id="troca-setup">
-      <input id="troca-code" placeholder="Código da sala">
-      <button id="troca-criar">Criar sala</button>
-      <button id="troca-entrar">Entrar</button>
-      <p id="troca-status"></p>
-      <label>Seu Pokémon: <select id="troca-escolha"></select></label>
-      <p id="troca-oferta"></p>
-      <button id="troca-aceitar" class="oculto">✅ Aceitar troca</button>
-    </div>
-    <button id="troca-fechar">Fechar</button>
-  </section>
-
-  <script src="game.js?v=2"></script>
+<script src="game.js?v=6"></script>
 </body>
 </html>
