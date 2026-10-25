@@ -66,6 +66,12 @@ const RARIDADES = {
   mitico:   { nome: 'Mítico',   cor: '#f43f5e', peso: 0.03, captura: 0.28 },
 };
 
+// Limites de nível: Pokémon normais param no 100. Administrador e trocas
+// podem carregar níveis acima disso; raids usam um chefe de nível 500.
+const NIVEL_MAX_NORMAL = 100;
+const NIVEL_RAID = 500;
+const CHANCE_SHINY_RAID = 0.05;
+
 // IDs de lendários e míticos de todas as gerações (usados pela PokéAPI e pelas raids).
 const LENDARIOS = new Set([
   144, 145, 146, 150,
@@ -1024,11 +1030,12 @@ function spawnSelvagem() {
   if (!e) return;
   const tier = tierDe(e);
   const shiny = Math.random() < Math.min(0.08, 0.015 + nivel * 0.001);
-  const cp = Math.round(10 + Math.random() * 15 * nivel * (tier === 'lendario' || tier === 'mitico' ? 2.5 : 1));
+  const nivelSelvagem = Math.max(1, Math.min(NIVEL_MAX_NORMAL, Math.round(nivel * (0.4 + Math.random() * 0.6))));
+  const cp = Math.round(10 + Math.random() * 15 * nivelSelvagem * (tier === 'lendario' || tier === 'mitico' ? 2.5 : 1));
   const ang = Math.random() * Math.PI * 2;
   const dist = 10 + Math.random() * 25;
   const s = {
-    espec: idx, pokeId: e.id, cp, shiny, mega: false, tier,
+    espec: idx, pokeId: e.id, cp, shiny, mega: false, tier, nivel: nivelSelvagem,
     x: Math.max(-140, Math.min(140, player.x + Math.cos(ang) * dist)),
     y: Math.max(-140, Math.min(140, player.y + Math.sin(ang) * dist)),
     hp: e.hp, hpMax: e.hp, bob: Math.random() * 6,
@@ -1131,9 +1138,9 @@ function iniciarRaid() {
   const ang = Math.random() * Math.PI * 2;
   const dist = 14 + Math.random() * 12;
   const s = {
-    espec: idx, pokeId: e.id, raid: true, tier, nivel: 150,
-    cp: 150 * 15 + Math.floor(Math.random() * 300),
-    shiny: false, mega: false, hp: 1, hpMax: 1, bob: Math.random() * 6,
+    espec: idx, pokeId: e.id, raid: true, tier, nivel: NIVEL_RAID,
+    cp: NIVEL_RAID * 15 + Math.floor(Math.random() * 300),
+    shiny: Math.random() < CHANCE_SHINY_RAID, mega: false, hp: 1, hpMax: 1, bob: Math.random() * 6,
     x: Math.max(-140, Math.min(140, player.x + Math.cos(ang) * dist)),
     y: Math.max(-140, Math.min(140, player.y + Math.sin(ang) * dist)),
   };
@@ -1183,11 +1190,18 @@ function iniciarRaid() {
   raidExpiraEm = Date.now() + 120000;
   raidSegAnterior = -1;
   const nome = document.getElementById('raid-nome');
-  if (nome) nome.textContent = `${nomeExibicao(s)} · Nv 150`;
+  if (nome) nome.textContent = `${nomeExibicao(s)} · Nv ${NIVEL_RAID}`;
+  const shinyEl = document.getElementById('raid-shiny');
+  if (shinyEl) {
+    shinyEl.textContent = s.shiny
+      ? '✨ SHINY! Garantido na captura!'
+      : `✨ Chance shiny: ${Math.round(CHANCE_SHINY_RAID * 100)}%`;
+    shinyEl.classList.toggle('shiny', s.shiny);
+  }
   const alerta = document.getElementById('raid-alerta');
   if (alerta) alerta.classList.remove('oculto');
   atualizarBannerRaid();
-  toast(`🚨 RAID LENDÁRIA! ${nomeExibicao(s)} nível 150 apareceu!`);
+  toast(`🚨 RAID LENDÁRIA! ${nomeExibicao(s)} nível ${NIVEL_RAID} apareceu!`);
   sfx('batalha');
   rugidoPokemon(s, 'batalha');
 }
@@ -1222,7 +1236,7 @@ function entrarRaid(s) {
   if (time.length < 3) return toast('⚠️ Você precisa de 3 Pokémon no time para entrar na raid!');
   const equipe = [...time].sort((a, b) => b.cp - a.cp).slice(0, 3);
   const somaCp = equipe.reduce((a, p) => a + p.cp, 0);
-  const bossHpMax = Math.max(300, Math.round(180 + somaCp * 0.9 + nivel * 4));
+  const bossHpMax = Math.max(300, Math.round(180 + somaCp * 0.9 + nivel * 4 + NIVEL_RAID * 0.5));
   const mons = equipe.map(p => {
     const hp = Math.round(140 + p.cp / 2.5);
     return { ref: p, hp, hpMax: hp };
@@ -1235,9 +1249,9 @@ function entrarRaid(s) {
 
   const e = ESPECIES[s.espec];
   const r = raridadeDe(e);
-  document.getElementById('b-titulo').textContent = '⚔️ Raid lendária · Nv 150';
+  document.getElementById('b-titulo').textContent = `⚔️ Raid lendária · Nv ${NIVEL_RAID}`;
   document.getElementById('b-wild-img').src = spriteUrl(s);
-  document.getElementById('b-wild-nome').textContent = `${nomeExibicao(s)} · Nv 150 · CP ${s.cp}`;
+  document.getElementById('b-wild-nome').textContent = `${nomeExibicao(s)} · Nv ${NIVEL_RAID} · CP ${s.cp}`;
   const tag = document.getElementById('b-wild-raridade');
   if (tag) {
     tag.textContent = r.nome;
@@ -1254,7 +1268,7 @@ function entrarRaid(s) {
   document.getElementById('tela-batalha').classList.remove('oculto');
   renderRaidTime();
   montarMovesRaid();
-  log(`Raid lendária! ${nomeExibicao(s)} Nv 150 enfrenta os 3 Pokémon mais fortes do seu time.`);
+  log(`Raid lendária! ${nomeExibicao(s)} Nv ${NIVEL_RAID} enfrenta os 3 Pokémon mais fortes do seu time.`);
   sfx('batalha');
   rugidoPokemon(s, 'batalha');
 }
@@ -1290,7 +1304,7 @@ function atacarRaid(i) {
     const mvW = movesDo(tipoBoss)[Math.floor(Math.random() * 4)];
     const mulW = eff2(tipoBoss, ESPECIES[alvo.ref.espec].tipo);
     const critW = Math.random() < 0.0625;
-    const dmgW = Math.max(6, Math.round((20 + st.boss.nivel * 0.1 + alvo.ref.cp / 25) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
+    const dmgW = Math.max(6, Math.round((20 + st.boss.nivel * 0.045 + alvo.ref.cp / 25) * mulW * (critW ? 1.5 : 1) * (0.85 + Math.random() * 0.3)));
     alvo.hp = Math.max(0, alvo.hp - dmgW);
     renderRaidTime();
     sfx('hit');
@@ -1348,12 +1362,13 @@ function premiarRaid(boss) {
   const hpMax = Math.max(100, Math.round((e.hp || 100) * 2));
   const premio = {
     espec: boss.espec, pokeId: e.id, cp, nivel: nivelSorteado,
-    shiny: Math.random() < 0.03, mega: false, tier: boss.tier,
+    shiny: !!boss.shiny, mega: false, tier: boss.tier,
     raidRecompensa: true, hp: hpMax, hpMax,
   };
   abrirCaptura(premio);
-  document.getElementById('captura-msg').textContent = `🏆 Recompensa da raid! Nível sorteado: ${nivelSorteado}.`;
-  toast(`🏆 Lendário derrotado! Capture-o no nível ${nivelSorteado}!`);
+  const shinyTxt = premio.shiny ? ' ✨ SHINY!' : '';
+  document.getElementById('captura-msg').textContent = `🏆 Recompensa da raid! Nível sorteado: ${nivelSorteado}.${shinyTxt}`;
+  toast(`🏆 Lendário derrotado!${shinyTxt} Capture-o no nível ${nivelSorteado}!`);
 }
 
 function derrotaRaid() {
@@ -1615,7 +1630,7 @@ function abrirCaptura(s) {
   capturaAtual = s;
   const e = ESPECIES[s.espec];
   const r = raridadeDe(e);
-  const lvl = s.nivel || Math.max(1, Math.round(s.cp / 15));
+  const lvl = Math.min(NIVEL_MAX_NORMAL, s.nivel || Math.max(1, Math.round(s.cp / 15)));
   document.getElementById('captura-nome').textContent = nomeExibicao(s);
   document.getElementById('captura-cp').textContent = 'CP ' + s.cp;
   document.getElementById('captura-tipo').textContent = e.tipo;
@@ -1908,7 +1923,7 @@ function concluirCaptura() {
   toast('🎉 Capturado! ' + nomeExibicao(s));
   inventario.push({
     espec: s.espec, pokeId: ESPECIES[s.espec].id, cp: s.cp,
-    nivel: s.nivel || Math.max(1, Math.round(s.cp / 15)),
+    nivel: Math.min(NIVEL_MAX_NORMAL, s.nivel || Math.max(1, Math.round(s.cp / 15))),
     shiny: s.shiny, mega: false, pc: false,
   });
   moedas += 25;
@@ -2116,9 +2131,12 @@ function evoluir(i) {
   if ((doces[raiz] || 0) < e.candy) return toast('🍬 Doces insuficientes!');
   doces[raiz] -= e.candy;
   const antes = spriteUrl(inst);
+  const nivelEvo = inst.nivel || Math.max(1, Math.round(inst.cp / 15));
   inst.espec = e.evo;
   inst.cp = Math.round(inst.cp * 1.6 + 20);
-  inst.nivel += 3;
+  inst.nivel = nivelEvo > NIVEL_MAX_NORMAL
+    ? nivelEvo + 3
+    : Math.min(NIVEL_MAX_NORMAL, nivelEvo + 3);
   mostrarEvo(antes, spriteUrl(inst), nomeExibicao(inst));
   sfx('evoluir');
   ganharXp(100);
@@ -2224,9 +2242,12 @@ function virarDoce(i) {
 function powerUp(i) {
   const p = inventario[i];
   const raiz = raizDe(p.espec);
+  const nivelAtual = p.nivel || Math.max(1, Math.round(p.cp / 15));
+  const limiteNivel = nivelAtual > NIVEL_MAX_NORMAL ? Infinity : NIVEL_MAX_NORMAL;
+  if (nivelAtual >= limiteNivel) return toast(`⭐ Nível máximo normal (${NIVEL_MAX_NORMAL}) atingido!`);
   if ((doces[raiz] || 0) < 3) return toast('🍬 Doces insuficientes!');
   doces[raiz] -= 3;
-  p.nivel++;
+  p.nivel = nivelAtual + 1;
   p.cp = Math.round(p.cp * 1.06 + 5);
   toast(`🔼 ${nomeExibicao(p)} subiu para o nível ${p.nivel}!`);
   ganharXp(20);

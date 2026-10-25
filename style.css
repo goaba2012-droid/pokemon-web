@@ -206,7 +206,21 @@ main {
   background: rgba(0, 0, 0, .28); border: 1px solid rgba(255, 255, 255, .16);
   font-size: .7rem; letter-spacing: .5px; color: #fff;
 }
-#raid-nome { margin: 5px 0 9px; font-weight: 900; font-size: .98rem; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .55); }
+#raid-nome { margin: 5px 0 3px; font-weight: 900; font-size: .98rem; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .55); }
+#raid-shiny {
+  margin-bottom: 9px;
+  font-size: .68rem; font-weight: 800; letter-spacing: .35px;
+  color: #fde68a;
+}
+#raid-shiny.shiny {
+  color: #fff;
+  text-shadow: 0 0 12px rgba(255, 213, 79, .9);
+  animation: brilhoShiny 1.2s infinite alternate;
+}
+@keyframes brilhoShiny {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.35); }
+}
 #raid-entrar {
   width: 100%; padding: 10px 14px;
   border-radius: 12px; border: 1px solid rgba(255, 255, 255, .22);
@@ -838,7 +852,8 @@ select option { background: #14203a; color: var(--text); }
   #b-arena { padding: 12px 6px; }
   .lutador img, .pvp-lado img { width: 82px; height: 82px; }
   #raid-alerta { top: 54px; padding: 10px 12px 12px; border-radius: 16px; }
-  #raid-nome { font-size: .84rem; margin: 4px 0 7px; }
+  #raid-nome { font-size: .84rem; margin: 4px 0 2px; }
+  #raid-shiny { font-size: .6rem; margin-bottom: 7px; }
   #raid-entrar { padding: 8px 10px; font-size: .78rem; }
   .raid-mon { padding: 6px 4px; border-radius: 11px; }
   .raid-mon img { width: 44px; height: 44px; }

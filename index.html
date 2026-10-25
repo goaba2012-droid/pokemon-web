@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b1020">
 <title>Pokémon Web GO</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50h92' stroke='%23222' stroke-width='8'/><circle cx='50' cy='50' r='14' fill='%23fff' stroke='%23222' stroke-width='8'/><path d='M4 50a46 46 0 0 1 92 0z' fill='%23ef4444'/></svg>">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div class="bg-orb orb-1"></div>
@@ -47,7 +47,8 @@
         <b>RAID LENDÁRIA</b>
         <span id="raid-timer">2:00</span>
       </div>
-      <div id="raid-nome">Lendário · Nv 150</div>
+      <div id="raid-nome">Lendário · Nv 500</div>
+      <div id="raid-shiny">✨ Chance shiny: 5%</div>
       <button id="raid-entrar">⚔️ Entrar na raid</button>
     </div>
   </div>
@@ -259,7 +260,7 @@
     <input id="admin-poke-busca" type="search" placeholder="🔍 Filtrar por nome ou número..." class="campo-largo">
     <select id="admin-poke" class="campo-largo" size="5"></select>
     <div class="admin-grid">
-      <label>Nível <input id="admin-level" type="number" min="1" value="10"></label>
+      <label>Nível (admin pode &gt;100) <input id="admin-level" type="number" min="1" value="10"></label>
       <label class="check"><input id="admin-shiny" type="checkbox"> ✨ Shiny</label>
     </div>
     <button onclick="darPokemon()" class="btn-principal">🎁 Dar Pokémon</button>
@@ -359,6 +360,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<script src="game.js?v=8"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>
