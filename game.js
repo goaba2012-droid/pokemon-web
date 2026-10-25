@@ -388,42 +388,248 @@ scene.add(ground);
 
 const decoGrupo = new THREE.Group();
 scene.add(decoGrupo);
-const somCtx = { ctx: null, mudo: false };
+const somCtx = {
+  ctx: null, mudo: false, master: null, volume: 0.8,
+  cries: new Map(), ruido: null,
+};
 function audio() {
-  if (!somCtx.ctx) somCtx.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!somCtx.ctx) {
+    try {
+      somCtx.ctx = new AC();
+      somCtx.master = somCtx.ctx.createGain();
+      somCtx.master.gain.value = somCtx.mudo ? 0 : somCtx.volume;
+      const comp = somCtx.ctx.createDynamicsCompressor();
+      comp.threshold.value = -18;
+      comp.knee.value = 22;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.004;
+      comp.release.value = 0.25;
+      somCtx.master.connect(comp);
+      comp.connect(somCtx.ctx.destination);
+    } catch (e) {
+      somCtx.ctx = null;
+      return null;
+    }
+  }
+  if (somCtx.ctx.state === 'suspended') somCtx.ctx.resume().catch(() => {});
   return somCtx.ctx;
 }
-function tom(freq, dur, tipo = 'square', vol = 0.08, delay = 0) {
+function aplicarSom() {
+  if (somCtx.ctx && somCtx.master) {
+    const t = somCtx.ctx.currentTime;
+    somCtx.master.gain.cancelScheduledValues(t);
+    somCtx.master.gain.setTargetAtTime(somCtx.mudo ? 0 : somCtx.volume, t, 0.03);
+  }
+  if (somCtx.mudo) {
+    for (const a of somCtx.cries.values()) {
+      try { a.pause(); } catch (e) {}
+    }
+  }
+}
+function tom(freq, dur, tipo = 'square', vol = 0.08, delay = 0, slide = 0) {
   if (somCtx.mudo) return;
+  const a = audio();
+  if (!a) return;
   try {
-    const a = audio();
-    const o = a.createOscillator(); const g = a.createGain();
-    o.type = tipo; o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, a.currentTime + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + delay + dur);
-    o.connect(g); g.connect(a.destination);
-    o.start(a.currentTime + delay); o.stop(a.currentTime + delay + dur);
+    const t0 = a.currentTime + Math.max(0, delay);
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = tipo;
+    o.frequency.setValueAtTime(Math.max(20, freq), t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + Math.min(0.025, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g);
+    g.connect(somCtx.master || a.destination);
+    o.start(t0);
+    o.stop(t0 + dur + 0.03);
+  } catch (e) {}
+}
+function bufferRuido(a) {
+  if (somCtx.ruido && somCtx.ruido.sampleRate === a.sampleRate) return somCtx.ruido;
+  const len = Math.floor(a.sampleRate * 1.2);
+  const b = a.createBuffer(1, len, a.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  somCtx.ruido = b;
+  return b;
+}
+function ruido(dur = 0.2, vol = 0.08, freq = 1200, delay = 0, tipo = 'lowpass') {
+  if (somCtx.mudo) return;
+  const a = audio();
+  if (!a) return;
+  try {
+    const t0 = a.currentTime + Math.max(0, delay);
+    const src = a.createBufferSource();
+    const f = a.createBiquadFilter();
+    const g = a.createGain();
+    src.buffer = bufferRuido(a);
+    src.loop = true;
+    f.type = tipo;
+    f.frequency.setValueAtTime(Math.max(60, freq), t0);
+    f.Q.value = tipo === 'bandpass' ? 1.2 : 0.7;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + Math.min(0.03, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(somCtx.master || a.destination);
+    src.start(t0);
+    src.stop(t0 + dur + 0.03);
   } catch (e) {}
 }
 const CRIE = id => `https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`;
-function cry(s) {
+function tocarCrie(s, volume = 0.6) {
   if (somCtx.mudo || !s) return;
   const e = ESPECIES[s.espec];
   if (!e) return;
   const id = (s.mega && e.mega) ? e.mega.id : e.id;
-  try { const a = new Audio(CRIE(id)); a.volume = 0.5; a.play(); } catch (e) {}
+  try {
+    let a = somCtx.cries.get(id);
+    if (!a) {
+      a = new Audio();
+      a.preload = 'auto';
+      a.src = CRIE(id);
+      a.style.cssText = 'position:absolute;width:0;height:0;opacity:0;pointer-events:none';
+      document.body.appendChild(a);
+      somCtx.cries.set(id, a);
+      a.load();
+    }
+    a.pause();
+    try { a.currentTime = 0; } catch (e) {}
+    a.volume = Math.min(1, Math.max(0, volume));
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (err) {}
+}
+function cry(s, volume = 0.6) { tocarCrie(s, volume); }
+
+// Rugido grave sintetizado, somado ao grito original do Pokémon.
+function rugidoSintetico(forca = 1, base = 1) {
+  if (somCtx.mudo) return;
+  const a = audio();
+  if (!a) return;
+  try {
+    const t0 = a.currentTime;
+    const dur = 1.05;
+    const destino = somCtx.master || a.destination;
+
+    const o = a.createOscillator();
+    const f = a.createBiquadFilter();
+    const g = a.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(52 * base, t0);
+    o.frequency.exponentialRampToValueAtTime(88 * base, t0 + 0.18);
+    o.frequency.exponentialRampToValueAtTime(42 * base, t0 + dur);
+    f.type = 'lowpass';
+    f.Q.value = 3.5;
+    f.frequency.setValueAtTime(220, t0);
+    f.frequency.linearRampToValueAtTime(700, t0 + 0.18);
+    f.frequency.exponentialRampToValueAtTime(110, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.2 * forca, t0 + 0.07);
+    g.gain.exponentialRampToValueAtTime(0.11 * forca, t0 + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(f); f.connect(g); g.connect(destino);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+
+    const o2 = a.createOscillator();
+    const g2 = a.createGain();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(104 * base, t0);
+    o2.frequency.exponentialRampToValueAtTime(70 * base, t0 + dur * 0.8);
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(0.05 * forca, t0 + 0.08);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.75);
+    o2.connect(g2); g2.connect(destino);
+    o2.start(t0); o2.stop(t0 + dur * 0.8);
+
+    const n = a.createBufferSource();
+    const nf = a.createBiquadFilter();
+    const ng = a.createGain();
+    n.buffer = bufferRuido(a);
+    n.loop = true;
+    nf.type = 'bandpass';
+    nf.Q.value = 0.9;
+    nf.frequency.setValueAtTime(180, t0);
+    nf.frequency.linearRampToValueAtTime(480, t0 + 0.2);
+    nf.frequency.exponentialRampToValueAtTime(120, t0 + dur);
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(0.08 * forca, t0 + 0.12);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    n.connect(nf); nf.connect(ng); ng.connect(destino);
+    n.start(t0); n.stop(t0 + dur);
+  } catch (e) {}
+}
+function rugidoPokemon(s, modo = 'captura') {
+  if (somCtx.mudo || !s) return;
+  const e = ESPECIES[s.espec];
+  if (!e) return;
+  const porte = e.lendario ? 1 : Math.min(1.2, Math.max(0.75, (e.hp || 70) / 110));
+  const forca = (modo === 'batalha' ? 1.08 : 0.92) * (1.15 - porte * 0.22);
+  const base = 1.18 - porte * 0.28;
+  rugidoSintetico(forca, base);
+  tocarCrie(s, modo === 'batalha' ? 0.75 : 0.62);
 }
 function sfx(nome) {
   switch (nome) {
-    case 'click': tom(600, 0.06, 'square', 0.05); break;
-    case 'bola': tom(300, 0.15, 'sine', 0.1); tom(500, 0.2, 'sine', 0.08, 0.12); break;
-    case 'hit': tom(160, 0.12, 'sawtooth', 0.12); break;
-    case 'vitoria': tom(523, 0.12); tom(659, 0.12, 'square', 0.08, 0.12); tom(784, 0.25, 'square', 0.08, 0.24); break;
-    case 'falha': tom(220, 0.2, 'sawtooth', 0.08); tom(160, 0.3, 'sawtooth', 0.08, 0.15); break;
-    case 'coin': tom(880, 0.08, 'sine', 0.1); tom(1320, 0.15, 'sine', 0.08, 0.08); break;
-    case 'evoluir': tom(400, 0.15, 'sine', 0.1); tom(600, 0.15, 'sine', 0.1, 0.12); tom(900, 0.3, 'sine', 0.1, 0.24); break;
-    case 'shiny': tom(1200, 0.1, 'sine', 0.08); tom(1600, 0.2, 'sine', 0.08, 0.1); break;
-    case 'level': tom(500, 0.1); tom(700, 0.1, 'square', 0.08, 0.1); tom(1000, 0.2, 'square', 0.08, 0.2); break;
+    case 'click': tom(560, 0.055, 'triangle', 0.035); break;
+    case 'bola':
+      ruido(0.09, 0.045, 900);
+      tom(280, 0.14, 'sine', 0.09);
+      tom(520, 0.2, 'sine', 0.06, 0.1);
+      break;
+    case 'hit':
+      ruido(0.11, 0.07, 750);
+      tom(150, 0.14, 'sawtooth', 0.11, 0, 70);
+      break;
+    case 'vitoria':
+      tom(523, 0.12, 'triangle', 0.09);
+      tom(659, 0.12, 'triangle', 0.09, 0.12);
+      tom(784, 0.28, 'triangle', 0.09, 0.24);
+      tom(1046, 0.4, 'sine', 0.06, 0.36);
+      break;
+    case 'falha':
+      ruido(0.2, 0.04, 400);
+      tom(220, 0.2, 'sawtooth', 0.08);
+      tom(160, 0.32, 'sawtooth', 0.08, 0.15, 90);
+      break;
+    case 'coin':
+      tom(880, 0.07, 'sine', 0.09);
+      tom(1320, 0.14, 'sine', 0.07, 0.07);
+      break;
+    case 'evoluir':
+      ruido(0.5, 0.025, 1200, 0, 'highpass');
+      tom(400, 0.15, 'sine', 0.1);
+      tom(600, 0.15, 'sine', 0.1, 0.12);
+      tom(900, 0.32, 'sine', 0.1, 0.24);
+      tom(1200, 0.4, 'triangle', 0.05, 0.4);
+      break;
+    case 'shiny':
+      tom(1200, 0.09, 'sine', 0.07);
+      tom(1600, 0.13, 'sine', 0.07, 0.09);
+      tom(2100, 0.25, 'sine', 0.05, 0.2);
+      break;
+    case 'level':
+      tom(500, 0.1, 'triangle', 0.08);
+      tom(700, 0.1, 'triangle', 0.08, 0.1);
+      tom(1000, 0.22, 'triangle', 0.08, 0.2);
+      break;
+    case 'captura':
+      ruido(0.16, 0.035, 1400, 0, 'highpass');
+      tom(360, 0.12, 'sine', 0.06);
+      tom(540, 0.18, 'sine', 0.05, 0.1);
+      tom(810, 0.28, 'sine', 0.04, 0.2);
+      break;
+    case 'batalha':
+      ruido(0.22, 0.05, 500);
+      tom(98, 0.22, 'sawtooth', 0.11, 0, 60);
+      tom(196, 0.18, 'square', 0.06, 0.08);
+      tom(147, 0.35, 'sawtooth', 0.07, 0.18, 110);
+      break;
   }
 }
 document.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') sfx('click'); });
@@ -976,8 +1182,9 @@ function abrirCaptura(s) {
   document.getElementById('tela-captura').classList.remove('oculto');
   anelT = 1;
   iniciarCenaCaptura(s);
+  sfx('captura');
   if (s.shiny) sfx('shiny');
-  cry(s);
+  rugidoPokemon(s, 'captura');
 }
 
 // ===== CENA 3D DA CAPTURA =====
@@ -1279,19 +1486,20 @@ document.getElementById('btn-batalha').onclick = () => {
   document.getElementById('b-wild-nome').textContent = nomeExibicao(s) + ' CP ' + s.cp;
   document.getElementById('b-wild-hp').style.width = (s.hp / s.hpMax * 100) + '%';
   log('Um ' + nomeExibicao(s) + ' selvagem apareceu!');
-  cry(s);
+  sfx('batalha');
+  rugidoPokemon(s, 'batalha');
 };
 
-function novoHpVoce() {
+function novoHpVoce(comSom = true) {
   const i = parseInt(document.getElementById('b-select').value);
   const p = inventario[i];
   bVoce = { ref: p, hpMax: Math.round(40 + p.cp / 4), hp: Math.round(40 + p.cp / 4) };
   document.getElementById('b-voce-img').src = spriteUrl(p);
   document.getElementById('b-voce-hp').style.width = '100%';
   montarMoves();
-  cry(p);
+  if (comSom) cry(p, 0.5);
 }
-function novaBatalhaJogador() { novoHpVoce(); }
+function novaBatalhaJogador() { novoHpVoce(false); }
 document.getElementById('b-select').addEventListener('change', novoHpVoce);
 
 const MOVES = {
@@ -1353,7 +1561,7 @@ function atacar(i) {
   log(`${nomeExibicao(p)} usou ${mv.n}!${crit ? ' Crítico!' : ''} ${msgEff(mul)}`);
   if (capturaAtual.hp <= 0) {
     setTimeout(() => {
-      cry(capturaAtual);
+      cry(capturaAtual, 0.55);
       log(`${nomeExibicao(capturaAtual)} desmaiou! Você ganhou XP!`);
       sfx('vitoria');
       ganharXp(25);
@@ -1374,7 +1582,7 @@ function atacar(i) {
     log(`${nomeExibicao(capturaAtual)} usou ${mvW.n}!${critW ? ' Crítico!' : ''} ${msgEff(mulW)}`);
     if (bVoce.hp <= 0) {
       setTimeout(() => {
-        cry(bVoce.ref);
+        cry(bVoce.ref, 0.45);
         log(`${nomeExibicao(bVoce.ref)} desmaiou! O selvagem mantém ${Math.round(capturaAtual.hp / capturaAtual.hpMax * 100)}% de HP.`);
         sfx('falha');
         setTimeout(() => { document.getElementById('tela-batalha').classList.add('oculto'); bBusy = false; }, 1600);
@@ -1768,6 +1976,7 @@ document.getElementById('btn-som').onclick = () => {
   somCtx.mudo = !somCtx.mudo;
   localStorage.setItem('pw_mudo', somCtx.mudo ? '1' : '0');
   document.getElementById('btn-som').textContent = somCtx.mudo ? '🔇' : '🔊';
+  aplicarSom();
 };
 
 document.getElementById('btn-sair').onclick = () => {
